@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "POS Mobile",
+    "slug": "pos-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "cover"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.yourname.kasirpos",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Digunakan untuk scan barcode produk.",
+        "NSPhotoLibraryUsageDescription": "Digunakan untuk pilih foto produk.",
+        "NSPhotoLibraryAddUsageDescription": "Digunakan untuk menyimpan foto produk.",
+        "NSBluetoothAlwaysUsageDescription": "Digunakan untuk mencetak struk ke printer Bluetooth.",
+        "NSBluetoothPeripheralUsageDescription": "Digunakan untuk mencetak struk ke printer Bluetooth."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#F8F9FC"
+      },
+      "package": "com.yourname.kasirpos",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Izinkan KasirPOS mengakses kamera untuk scan barcode."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Izinkan KasirPOS mengakses galeri untuk foto produk."
+        }
+      ]
+    ]
+  }
+}
