@@ -11,10 +11,12 @@
       "image": "./assets/splash-icon.png",
       "resizeMode": "cover"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.yourname.kasirpos",
+      "bundleIdentifier": "com.satriaindras.kasirpos",
       "infoPlist": {
         "NSCameraUsageDescription": "Digunakan untuk scan barcode produk.",
         "NSPhotoLibraryUsageDescription": "Digunakan untuk pilih foto produk.",
@@ -28,7 +30,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F8F9FC"
       },
-      "package": "com.yourname.kasirpos",
+      "package": "com.satriaindras.kasirpos",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -39,7 +41,8 @@
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.BLUETOOTH_SCAN",
         "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_COARSE_LOCATION"
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -58,6 +61,11 @@
           "photosPermission": "Izinkan KasirPOS mengakses galeri untuk foto produk."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f845bb0f-3141-4c12-91c8-25fc23e4771e"
+      }
+    }
   }
 }

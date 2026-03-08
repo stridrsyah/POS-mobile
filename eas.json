@@ -13,6 +13,9 @@
     },
     "preview": {
       "distribution": "internal",
+      "npmFlags": [
+        "--legacy-peer-deps"
+      ],
       "android": {
         "buildType": "apk"
       }
