@@ -130,8 +130,23 @@ const uploadRequest = async (endpoint, formData) => {
 // ─── AUTH ─────────────────────────────────────────────────────
 export const authAPI = {
   login: (usernameOrEmail, password) =>
-    request('/auth/login', 'POST', { username: usernameOrEmail, email: usernameOrEmail, password }, false),
+    request('/auth/login', 'POST',
+      { username: usernameOrEmail, email: usernameOrEmail, password },
+      false
+    ),
+ 
   logout: () => request('/auth/logout', 'POST'),
+ 
+  // Register owner baru — tidak butuh token, auto-login
+  register: (data) =>
+    request('/auth/register', 'POST', {
+      name:                  data.name,
+      business_name:         data.business_name,
+      email:                 data.email,
+      password:              data.password,
+      password_confirmation: data.password_confirmation,
+      phone:                 data.phone,
+    }, false),
 };
 
 // ─── DASHBOARD ────────────────────────────────────────────────
@@ -302,4 +317,12 @@ export const promosAPI = {
   create: (data) => request('/promos', 'POST', data),
   update: (id, data) => request(`/promos/${id}`, 'PUT', data),
   delete: (id) => request(`/promos/${id}`, 'DELETE'),
+};
+
+// ─── STAFF — kelola karyawan (owner only) ──────────────────────────────
+export const staffAPI = {
+  getAll:  ()          => request('/staff',       'GET'),
+  create:  (data)      => request('/staff',       'POST',   data),
+  update:  (id, data)  => request(`/staff/${id}`, 'PUT',    data),
+  remove:  (id)        => request(`/staff/${id}`, 'DELETE'),
 };
