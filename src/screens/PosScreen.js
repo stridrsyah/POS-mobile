@@ -14,7 +14,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, TextInput, FlatList, TouchableOpacity,
+  View, Text, TextInput, FlatList, TouchableOpacity, Dimensions,
   StyleSheet, ActivityIndicator, Image, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -541,9 +541,10 @@ const styles = StyleSheet.create({
   row: {
     gap: SPACING.md,
     marginBottom: SPACING.md,
+    justifyContent: 'flex-start',
   },
   productCard: {
-    flex: 1,
+    width: (Dimensions.get('window').width - (SPACING.lg * 2) - SPACING.md) / 2,
     backgroundColor: COLORS.bgCard,
     borderRadius: RADIUS.lg,
     overflow: 'hidden',

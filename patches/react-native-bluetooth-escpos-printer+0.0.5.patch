@@ -1,0 +1,45 @@
+diff --git a/node_modules/react-native-bluetooth-escpos-printer/android/build.gradle b/node_modules/react-native-bluetooth-escpos-printer/android/build.gradle
+index d86e4f5..e7846a3 100644
+--- a/node_modules/react-native-bluetooth-escpos-printer/android/build.gradle
++++ b/node_modules/react-native-bluetooth-escpos-printer/android/build.gradle
+@@ -1,19 +1,10 @@
+ buildscript {
+     repositories {
+-        jcenter { url "http://jcenter.bintray.com/" }
+-        maven {url "http://repo.spring.io/plugins-release/"}
++        google()
+         mavenCentral()
+-        maven {
+-            // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+-            url "$rootDir/../node_modules/react-native/android"
+-        }
+-        maven {
+-            url 'https://maven.google.com'
+-        }
+     }
+-
+     dependencies {
+-        classpath 'com.android.tools.build:gradle:3.1.4'
++        classpath 'com.android.tools.build:gradle:7.3.0'
+     }
+ }
+ 
+@@ -40,16 +31,9 @@ android {
+ }
+ 
+ repositories {
+-    jcenter { url "http://jcenter.bintray.com/" }
+-    maven {url "http://repo.spring.io/plugins-release/"}
++    google()
+     mavenCentral()
+-    maven {
+-        // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+-        url "$rootDir/../node_modules/react-native/android"
+-    }
+-    maven {
+-        url 'https://maven.google.com'
+-    }
++    maven { url 'https://jitpack.io' }
+ }
+ 
+ dependencies {

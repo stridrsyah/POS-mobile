@@ -1,23 +1,33 @@
 /**
  * src/screens/ProfileScreen.js — Profil & Menu Role-based
- * Admin:   Users, Promos, Settings, Reports, Customers, Suppliers, StockIn
- * Manager: Promos, Reports, Customers, Suppliers, StockIn
- * Kasir:   Customers only
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
-import { SERVER_IP } from '../services/api';
+import { SERVER_URL_KEY, DEFAULT_URL } from './ServerSettingsScreen';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
 
 export default function ProfileScreen({ navigation }) {
   const { user, logout, isAdmin, isManager } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [serverUrl,    setServerUrl]    = useState('');
+
+  useEffect(() => {
+    const load = () => {
+      AsyncStorage.getItem(SERVER_URL_KEY).then(saved => {
+        setServerUrl(saved || DEFAULT_URL);
+      });
+    };
+    load();
+    const unsub = navigation.addListener('focus', load);
+    return unsub;
+  }, [navigation]);
 
   const roleColor = { admin: COLORS.danger, manager: COLORS.warning, kasir: COLORS.success }[user?.role] || COLORS.success;
 
@@ -32,28 +42,29 @@ export default function ProfileScreen({ navigation }) {
     ]);
   };
 
-  // ── Menu Groups berdasarkan role ──────────────────────────
   const menuGroups = [
     {
       title: 'Laporan & Data',
       items: [
-        { label: 'Laporan Penjualan',   icon: 'bar-chart-outline',   color: COLORS.primary, screen: 'Reports',    visible: isAdmin || isManager },
-        { label: 'Analytics & Grafik',   icon: 'analytics-outline',   color: '#9C27B0',      screen: 'Analytics',  visible: isAdmin || isManager },
-        { label: 'Data Pelanggan',      icon: 'people-outline',      color: COLORS.info,    screen: 'Customers',  visible: true },
-        { label: 'Stok Masuk',          icon: 'archive-outline',     color: COLORS.success, screen: 'StockIn',    visible: isAdmin || isManager },
-        { label: 'Data Supplier',       icon: 'business-outline',    color: COLORS.warning, screen: 'Suppliers',  visible: isAdmin || isManager },
+        { label: 'Laporan Penjualan',  icon: 'bar-chart-outline',   color: COLORS.primary, screen: 'Reports',   visible: isAdmin || isManager },
+        { label: 'Analytics & Grafik', icon: 'analytics-outline',   color: '#9C27B0',      screen: 'Analytics', visible: isAdmin || isManager },
+        { label: 'Data Pelanggan',     icon: 'people-outline',      color: COLORS.info,    screen: 'Customers', visible: true },
+        { label: 'Stok Masuk',         icon: 'archive-outline',     color: COLORS.success, screen: 'StockIn',   visible: isAdmin || isManager },
+        { label: 'Data Supplier',      icon: 'business-outline',    color: COLORS.warning, screen: 'Suppliers', visible: isAdmin || isManager },
       ].filter(i => i.visible),
     },
     {
       title: 'Pengaturan (Admin & Manager)',
       items: [
-        { label: 'Promo & Diskon',      icon: 'pricetag-outline',    color: COLORS.primary,   screen: 'Promos',   visible: isAdmin || isManager },
-        { label: 'Manajemen User',      icon: 'people-circle-outline',color: COLORS.danger,   screen: 'Users',    visible: isAdmin },
-        { label: 'Pengaturan Struk',    icon: 'receipt-outline',     color: COLORS.info,      screen: 'ReceiptSettings', visible: isAdmin },
-        { label: 'Manajemen Kategori',  icon: 'grid-outline',        color: COLORS.warning,   screen: 'Categories', visible: isAdmin || isManager },
+        { label: 'Promo & Diskon',     icon: 'pricetag-outline',       color: COLORS.primary, screen: 'Promos',          visible: isAdmin || isManager },
+        { label: 'Manajemen User',     icon: 'people-circle-outline',  color: COLORS.danger,  screen: 'Users',           visible: isAdmin },
+        { label: 'Pengaturan Struk',   icon: 'receipt-outline',        color: COLORS.info,    screen: 'ReceiptSettings', visible: isAdmin },
+        { label: 'Manajemen Kategori', icon: 'grid-outline',           color: COLORS.warning, screen: 'Categories',      visible: isAdmin || isManager },
       ].filter(i => i.visible),
     },
   ].filter(g => g.items.length > 0);
+
+  const shortUrl = serverUrl.replace('https://', '').replace('http://', '');
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -63,7 +74,7 @@ export default function ProfileScreen({ navigation }) {
 
       <ScrollView showsVerticalScrollIndicator={false}>
 
-        {/* ── Kartu Profil ── */}
+        {/* Kartu Profil */}
         <View style={styles.profileCard}>
           <View style={styles.avatarCircle}>
             <Text style={styles.avatarLetter}>{user?.name?.charAt(0)?.toUpperCase() || '?'}</Text>
@@ -78,15 +89,20 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Server info */}
-        <View style={styles.serverCard}>
+        {/* Server card — bisa diklik untuk ganti URL */}
+        <TouchableOpacity
+          style={styles.serverCard}
+          onPress={() => navigation.navigate('ServerSettings')}
+          activeOpacity={0.7}
+        >
           <Ionicons name="server-outline" size={14} color={COLORS.textDark} />
-          <Text style={styles.serverText}>Server: {SERVER_IP}</Text>
+          <Text style={styles.serverText} numberOfLines={1}>{shortUrl}</Text>
           <View style={styles.serverDot} />
-          <Text style={styles.serverStatus}>XAMPP</Text>
-        </View>
+          <Text style={styles.serverStatus}>Aktif</Text>
+          <Ionicons name="pencil-outline" size={13} color={COLORS.primary} />
+        </TouchableOpacity>
 
-        {/* ── Menu Groups ── */}
+        {/* Menu Groups */}
         {menuGroups.map(group => (
           <View key={group.title}>
             <Text style={styles.groupTitle}>{group.title}</Text>
@@ -109,13 +125,13 @@ export default function ProfileScreen({ navigation }) {
           </View>
         ))}
 
-        {/* Tentang Aplikasi */}
+        {/* Tentang */}
         <Text style={styles.groupTitle}>Tentang</Text>
         <View style={styles.menuCard}>
           {[
             { l: 'Versi Aplikasi', v: '1.0.0' },
-            { l: 'SDK',           v: 'Expo SDK 52' },
-            { l: 'Backend',       v: 'PHP + XAMPP' },
+            { l: 'SDK',            v: 'Expo SDK 52' },
+            { l: 'Backend',        v: 'PHP + XAMPP' },
           ].map((info, idx, arr) => (
             <View key={info.l} style={[styles.infoItem, idx < arr.length - 1 && styles.menuItemBorder]}>
               <Text style={styles.infoLabel}>{info.l}</Text>
@@ -137,11 +153,8 @@ export default function ProfileScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgDark },
-  header: {
-    paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md,
-    backgroundColor: COLORS.bgMedium, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
+  container:   { flex: 1, backgroundColor: COLORS.bgDark },
+  header:      { paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md, backgroundColor: COLORS.bgMedium, borderBottomWidth: 1, borderBottomColor: COLORS.border },
   headerTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textWhite },
 
   profileCard: {
@@ -152,29 +165,29 @@ const styles = StyleSheet.create({
   },
   avatarCircle: { width: 58, height: 58, borderRadius: 29, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
   avatarLetter: { fontSize: FONTS.xxl, fontWeight: FONTS.black, color: '#fff' },
-  profileInfo: { flex: 1, gap: 2 },
-  userName: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  userEmail: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  userPhone: { fontSize: FONTS.sm, color: COLORS.textDark },
-  roleBadge: { paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 1 },
-  roleText: { fontSize: FONTS.xs, fontWeight: FONTS.bold },
+  profileInfo:  { flex: 1, gap: 2 },
+  userName:     { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
+  userEmail:    { fontSize: FONTS.sm, color: COLORS.textMuted },
+  userPhone:    { fontSize: FONTS.sm, color: COLORS.textDark },
+  roleBadge:    { paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full, borderWidth: 1 },
+  roleText:     { fontSize: FONTS.xs, fontWeight: FONTS.bold },
 
-  serverCard: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: SPACING.lg, marginBottom: SPACING.lg, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
-  serverText: { fontSize: FONTS.xs, color: COLORS.textDark, flex: 1 },
-  serverDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.success },
+  serverCard:   { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: SPACING.lg, marginBottom: SPACING.lg, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
+  serverText:   { fontSize: FONTS.xs, color: COLORS.textDark, flex: 1 },
+  serverDot:    { width: 6, height: 6, borderRadius: 3, backgroundColor: COLORS.success },
   serverStatus: { fontSize: FONTS.xs, color: COLORS.success, fontWeight: FONTS.medium },
 
-  groupTitle: { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.textDark, marginHorizontal: SPACING.xl, marginBottom: SPACING.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
-  menuCard: { backgroundColor: COLORS.bgCard, marginHorizontal: SPACING.lg, marginBottom: SPACING.xl, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', ...SHADOW.sm },
-  menuItem: { flexDirection: 'row', alignItems: 'center', padding: SPACING.lg, gap: SPACING.md },
+  groupTitle:     { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.textDark, marginHorizontal: SPACING.xl, marginBottom: SPACING.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
+  menuCard:       { backgroundColor: COLORS.bgCard, marginHorizontal: SPACING.lg, marginBottom: SPACING.xl, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden', ...SHADOW.sm },
+  menuItem:       { flexDirection: 'row', alignItems: 'center', padding: SPACING.lg, gap: SPACING.md },
   menuItemBorder: { borderBottomWidth: 1, borderBottomColor: COLORS.divider },
-  menuIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  menuLabel: { flex: 1, fontSize: FONTS.md, color: COLORS.textWhite, fontWeight: FONTS.medium },
+  menuIcon:       { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  menuLabel:      { flex: 1, fontSize: FONTS.md, color: COLORS.textWhite, fontWeight: FONTS.medium },
 
-  infoItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.lg },
-  infoLabel: { fontSize: FONTS.md, color: COLORS.textMuted },
-  infoValue: { fontSize: FONTS.sm, color: COLORS.textDark },
+  infoItem:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: SPACING.lg },
+  infoLabel:  { fontSize: FONTS.md, color: COLORS.textMuted },
+  infoValue:  { fontSize: FONTS.sm, color: COLORS.textDark },
 
-  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, backgroundColor: COLORS.danger + '15', borderRadius: RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.danger + '40' },
+  logoutBtn:  { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, backgroundColor: COLORS.danger + '15', borderRadius: RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.danger + '40' },
   logoutText: { fontSize: FONTS.md, fontWeight: FONTS.bold, color: COLORS.danger },
 });

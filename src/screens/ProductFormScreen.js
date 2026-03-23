@@ -18,7 +18,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { productsAPI, categoriesAPI, suppliersAPI, getImageUrl } from '../services/api';
+import { productsAPI, categoriesAPI, suppliersAPI, getImageUrl, getImageUrlAsync } from '../services/api';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
 import { formatCurrency } from '../utils/helpers';
 
@@ -95,7 +95,7 @@ export default function ProductFormScreen({ navigation, route }) {
 
   const [categories,    setCategories]    = useState([]);
   const [suppliers,     setSuppliers]     = useState([]);
-  const [photoUri,      setPhotoUri]      = useState(getImageUrl(editProduct) || null);
+  const [photoUri,      setPhotoUri]      = useState(null);
   const [isSaving,      setIsSaving]      = useState(false);
   const [isLoading,     setIsLoading]     = useState(true);
 
@@ -104,6 +104,11 @@ export default function ProductFormScreen({ navigation, route }) {
       const [cr, sr] = await Promise.all([categoriesAPI.getAll(), suppliersAPI.getAll()]);
       if (cr.success) setCategories(cr.data || []);
       if (sr.success) setSuppliers(sr.data  || []);
+      // Load foto produk secara async agar pakai URL ngrok yang benar
+      if (editProduct) {
+        const imgUrl = await getImageUrlAsync(editProduct);
+        if (imgUrl) setPhotoUri(imgUrl);
+      }
       setIsLoading(false);
     };
     load();

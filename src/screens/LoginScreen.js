@@ -1,97 +1,64 @@
 /**
  * src/screens/LoginScreen.js — Halaman Login
- * ============================================================
- * Fitur:
- * - Input username/email + password
- * - Validasi form sebelum submit
- * - Tampilkan/sembunyikan password
- * - Pesan error yang jelas
- * - Loading state saat proses login
- * - Demo mode jika server tidak tersedia
- * ============================================================
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  KeyboardAvoidingView, ScrollView, Platform, ActivityIndicator, Alert,
+  KeyboardAvoidingView, ScrollView, Platform, ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../context/AuthContext';
+import { SERVER_URL_KEY, DEFAULT_URL } from './ServerSettingsScreen';
 import { COLORS, FONTS, SPACING, RADIUS } from '../utils/theme';
 
-export default function LoginScreen() {
-  // State form
-  const [username, setUsername]         = useState('');
-  const [password, setPassword]         = useState('');
+export default function LoginScreen({ navigation }) {
+  const [username,     setUsername]     = useState('');
+  const [password,     setPassword]     = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoading, setIsLoading]       = useState(false);
-  const [error, setError]               = useState('');
+  const [isLoading,    setIsLoading]    = useState(false);
+  const [error,        setError]        = useState('');
+  const [serverUrl,    setServerUrl]    = useState('');
 
   const { login } = useAuth();
 
-  /**
-   * Validasi input sebelum submit ke API
-   * @returns {boolean} true jika valid
-   */
+  useEffect(() => {
+    const load = () => {
+      AsyncStorage.getItem(SERVER_URL_KEY).then(saved => {
+        setServerUrl(saved || DEFAULT_URL);
+      });
+    };
+    load();
+    const unsub = navigation.addListener('focus', load);
+    return unsub;
+  }, [navigation]);
+
   const validate = () => {
-    if (!username.trim()) {
-      setError('Username atau email tidak boleh kosong');
-      return false;
-    }
-    if (!password.trim()) {
-      setError('Password tidak boleh kosong');
-      return false;
-    }
-    if (password.length < 4) {
-      setError('Password minimal 4 karakter');
-      return false;
-    }
+    if (!username.trim()) { setError('Username atau email tidak boleh kosong'); return false; }
+    if (!password.trim()) { setError('Password tidak boleh kosong'); return false; }
+    if (password.length < 4) { setError('Password minimal 4 karakter'); return false; }
     return true;
   };
 
-  /**
-   * Handle tombol Login
-   */
   const handleLogin = async () => {
-    setError(''); // Reset error sebelumnya
-
+    setError('');
     if (!validate()) return;
-
     setIsLoading(true);
     try {
       const result = await login(username.trim(), password);
-
       if (!result.success) {
-        // Tampilkan pesan error dari API
         setError(result.error || 'Login gagal. Periksa username dan password.');
       }
-      // Jika success, AuthContext akan update isLoggedIn → RootNavigator redirect ke AppNavigator
     } catch (err) {
-      setError('Terjadi kesalahan. Pastikan server XAMPP aktif dan IP sudah benar.');
+      setError('Terjadi kesalahan. Pastikan server XAMPP aktif dan ngrok berjalan.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  /**
-   * Info cara setting IP untuk pengguna baru
-   */
-  const showIPHelp = () => {
-    Alert.alert(
-      '⚙️ Setting Server',
-      'Untuk menghubungkan ke server XAMPP:\n\n' +
-      '1. Buka file: src/services/api.js\n' +
-      '2. Ganti SERVER_IP dengan IP laptop kamu\n\n' +
-      '📍 Cara cek IP laptop:\n' +
-      '• Windows: Buka CMD → ketik "ipconfig"\n' +
-      '• Mac/Linux: ketik "ifconfig"\n' +
-      '• Lihat "IPv4 Address" pada WiFi\n\n' +
-      '⚠️ HP dan laptop harus terhubung ke WiFi yang SAMA',
-      [{ text: 'Mengerti', style: 'default' }]
-    );
-  };
+  const shortUrl = serverUrl.replace('https://', '').replace('http://', '');
 
   return (
     <LinearGradient colors={['#0F0F1A', '#1A1A2E']} style={styles.container}>
@@ -104,7 +71,7 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Header / Logo */}
+          {/* Header / Logo — TIDAK DIUBAH */}
           <View style={styles.header}>
             <View style={styles.logoContainer}>
               <Ionicons name="storefront" size={48} color={COLORS.primary} />
@@ -113,9 +80,8 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>Masuk ke akun Anda</Text>
           </View>
 
-          {/* Form Login */}
+          {/* Form Login — TIDAK DIUBAH */}
           <View style={styles.form}>
-            {/* Pesan Error */}
             {error ? (
               <View style={styles.errorBox}>
                 <Ionicons name="warning-outline" size={16} color={COLORS.danger} />
@@ -123,7 +89,6 @@ export default function LoginScreen() {
               </View>
             ) : null}
 
-            {/* Input Username */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Username / Email</Text>
               <View style={styles.inputWrapper}>
@@ -142,7 +107,6 @@ export default function LoginScreen() {
               </View>
             </View>
 
-            {/* Input Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Password</Text>
               <View style={styles.inputWrapper}>
@@ -158,21 +122,12 @@ export default function LoginScreen() {
                   returnKeyType="done"
                   onSubmitEditing={handleLogin}
                 />
-                {/* Toggle tampilkan password */}
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={styles.eyeButton}
-                >
-                  <Ionicons
-                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={18}
-                    color={COLORS.textMuted}
-                  />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeButton}>
+                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color={COLORS.textMuted} />
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Tombol Login */}
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
               onPress={handleLogin}
@@ -188,21 +143,25 @@ export default function LoginScreen() {
                 </>
               )}
             </TouchableOpacity>
-
-            {/* Tombol Help IP */}
-            <TouchableOpacity style={styles.helpButton} onPress={showIPHelp}>
-              <Ionicons name="help-circle-outline" size={16} color={COLORS.textMuted} />
-              <Text style={styles.helpText}>Tidak bisa terhubung ke server?</Text>
-            </TouchableOpacity>
           </View>
 
-          {/* Info koneksi */}
-          <View style={styles.infoBox}>
-            <Ionicons name="information-circle-outline" size={14} color={COLORS.info} />
-            <Text style={styles.infoText}>
-              Pastikan server XAMPP aktif dan HP terhubung ke WiFi yang sama dengan laptop server
-            </Text>
-          </View>
+          {/* ── BARU: Tombol ganti URL server — bisa diakses SEBELUM login ── */}
+          <TouchableOpacity
+            style={styles.serverBtn}
+            onPress={() => navigation.navigate('ServerSettings')}
+            activeOpacity={0.7}
+          >
+            <View style={styles.serverBtnLeft}>
+              <Ionicons name="server-outline" size={16} color={COLORS.textDark} />
+              <Text style={styles.serverBtnLabel}>Server:</Text>
+              <Text style={styles.serverBtnUrl} numberOfLines={1}>{shortUrl}</Text>
+            </View>
+            <View style={styles.serverBtnRight}>
+              <Text style={styles.serverBtnEdit}>Ganti</Text>
+              <Ionicons name="chevron-forward" size={14} color={COLORS.primary} />
+            </View>
+          </TouchableOpacity>
+
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
@@ -210,139 +169,64 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
+  container:    { flex: 1 },
   keyboardView: { flex: 1 },
   scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: SPACING.xl,
-    paddingTop: 60,
+    flexGrow: 1, justifyContent: 'center',
+    padding: SPACING.xl, paddingTop: 60,
   },
 
-  // ── Header ──
-  header: {
-    alignItems: 'center',
-    marginBottom: SPACING.xxl,
-    gap: SPACING.sm,
-  },
+  // Header
+  header: { alignItems: 'center', marginBottom: SPACING.xxl, gap: SPACING.sm },
   logoContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 24,
+    width: 96, height: 96, borderRadius: 24,
     backgroundColor: COLORS.primary + '22',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-    borderWidth: 2,
-    borderColor: COLORS.primary + '44',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 8, borderWidth: 2, borderColor: COLORS.primary + '44',
   },
-  appName: {
-    fontSize: FONTS.xxl,
-    fontWeight: FONTS.bold,
-    color: COLORS.textWhite,
-  },
-  subtitle: {
-    fontSize: FONTS.md,
-    color: COLORS.textMuted,
-  },
+  appName:  { fontSize: FONTS.xxl, fontWeight: FONTS.bold, color: COLORS.textWhite },
+  subtitle: { fontSize: FONTS.md, color: COLORS.textMuted },
 
-  // ── Form ──
-  form: {
-    gap: SPACING.md,
-    marginBottom: SPACING.xl,
-  },
+  // Form
+  form:     { gap: SPACING.md, marginBottom: SPACING.xl },
   errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.danger + '22',
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.danger + '55',
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    backgroundColor: COLORS.danger + '22', borderRadius: RADIUS.md,
+    padding: SPACING.md, borderWidth: 1, borderColor: COLORS.danger + '55',
   },
-  errorText: {
-    flex: 1,
-    fontSize: FONTS.sm,
-    color: COLORS.danger,
-    lineHeight: 18,
-  },
-
-  inputGroup: { gap: 6 },
-  label: {
-    fontSize: FONTS.sm,
-    color: COLORS.textLight,
-    fontWeight: FONTS.medium,
-    marginLeft: 4,
-  },
+  errorText: { flex: 1, fontSize: FONTS.sm, color: COLORS.danger, lineHeight: 18 },
+  inputGroup:  { gap: 6 },
+  label:       { fontSize: FONTS.sm, color: COLORS.textLight, fontWeight: FONTS.medium, marginLeft: 4 },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.bgInput,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md,
-    height: 52,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.border,
+    paddingHorizontal: SPACING.md, height: 52,
   },
   inputIcon: { marginRight: SPACING.sm },
-  input: {
-    flex: 1,
-    color: COLORS.textWhite,
-    fontSize: FONTS.md,
-  },
+  input:     { flex: 1, color: COLORS.textWhite, fontSize: FONTS.md },
   eyeButton: { padding: 4 },
-
   loginButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.md,
-    height: 52,
-    marginTop: SPACING.sm,
-    elevation: 4,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: SPACING.sm, backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.md, height: 52, marginTop: SPACING.sm,
+    elevation: 4, shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8,
   },
   loginButtonDisabled: { opacity: 0.7 },
-  loginButtonText: {
-    fontSize: FONTS.lg,
-    fontWeight: FONTS.bold,
-    color: '#fff',
-  },
+  loginButtonText: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: '#fff' },
 
-  helpButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: SPACING.sm,
+  // Server button
+  serverBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: COLORS.bgCard ?? '#1e1e2e',
+    borderRadius: RADIUS.md, padding: SPACING.md,
+    borderWidth: 1, borderColor: COLORS.border,
+    marginTop: SPACING.sm,
   },
-  helpText: {
-    fontSize: FONTS.sm,
-    color: COLORS.textMuted,
-    textDecorationLine: 'underline',
-  },
-
-  // ── Info Box ──
-  infoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.info + '15',
-    borderRadius: RADIUS.md,
-    padding: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.info + '30',
-  },
-  infoText: {
-    flex: 1,
-    fontSize: FONTS.xs,
-    color: COLORS.textMuted,
-    lineHeight: 16,
-  },
+  serverBtnLeft:  { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  serverBtnLabel: { fontSize: FONTS.xs, color: COLORS.textDark },
+  serverBtnUrl:   { fontSize: FONTS.xs, color: COLORS.textMuted, flex: 1 },
+  serverBtnRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  serverBtnEdit:  { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.bold },
 });

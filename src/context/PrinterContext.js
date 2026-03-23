@@ -1,13 +1,27 @@
 /**
- * PrinterContext.js
  * src/context/PrinterContext.js
+ * ─────────────────────────────────────────────────────────────
+ * PrinterContext — Safe fallback tanpa native library
+ *
+ * Status: Library bluetooth (react-native-bluetooth-escpos-printer)
+ * belum kompatibel dengan Gradle 8+ / EAS Build.
+ *
+ * Sementara ini, fitur cetak tersedia via:
+ *   - Print PDF  ✅ (expo-print + expo-sharing)
+ *   - Share WA   ✅ (React Native Share)
+ *
+ * Fitur Bluetooth Thermal Printer akan diaktifkan setelah
+ * library kompatibel ditemukan.
+ * ─────────────────────────────────────────────────────────────
  */
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Alert } from 'react-native';
 
 const PrinterContext = createContext(null);
 
-const MSG = 'Gunakan tombol Print PDF untuk mencetak struk.';
+const BT_MSG =
+  'Cetak ke Bluetooth Thermal Printer belum tersedia.\n\n' +
+  'Gunakan tombol "Print PDF" atau "Bagikan" untuk mencetak struk.';
 
 export function PrinterProvider({ children }) {
   const [isScanning,      setIsScanning]   = useState(false);
@@ -18,17 +32,18 @@ export function PrinterProvider({ children }) {
   const [foundDevices,    setFound]        = useState([]);
 
   const initPrinter       = useCallback(async () => {}, []);
-  const scanDevices       = useCallback(async () => { Alert.alert('Info', MSG); }, []);
-  const connectPrinter    = useCallback(async () => { Alert.alert('Info', MSG); }, []);
+  const scanDevices       = useCallback(async () => { Alert.alert('🖨️ Printer Bluetooth', BT_MSG); }, []);
+  const connectPrinter    = useCallback(async () => { Alert.alert('🖨️ Printer Bluetooth', BT_MSG); }, []);
   const disconnectPrinter = useCallback(async () => { setConnected(null); }, []);
-  const printReceipt      = useCallback(async () => { Alert.alert('Info', MSG); return false; }, []);
-  const testPrint         = useCallback(async () => { Alert.alert('Info', MSG); }, []);
+  const printReceipt      = useCallback(async () => { Alert.alert('🖨️ Printer Bluetooth', BT_MSG); return false; }, []);
+  const testPrint         = useCallback(async () => { Alert.alert('🖨️ Printer Bluetooth', BT_MSG); }, []);
 
   return (
     <PrinterContext.Provider value={{
-      isScanning, isConnecting,
-      isBtPrinting: isPrinting, isPrinting,
+      isScanning, isConnecting, isPrinting,
+      isBtPrinting: isPrinting,
       connectedDevice, pairedDevices, foundDevices,
+      isLibAvailable: false,
       initPrinter, scanDevices, connectPrinter,
       disconnectPrinter, printReceipt, testPrint,
     }}>
