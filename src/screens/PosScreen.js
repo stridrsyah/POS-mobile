@@ -1,41 +1,39 @@
 /**
- * src/screens/PosScreen.js — Halaman Kasir (Point of Sale)
- * ============================================================
- * Fitur:
- * - Grid produk 2 kolom dengan filter kategori
- * - Search produk berdasarkan nama
- * - 📷 Scan Barcode via kamera (buka BarcodeScannerScreen)
- * - Tambah produk ke keranjang dengan feedback visual
- * - Badge jumlah item di tombol keranjang
- * - Floating button keranjang saat ada item
- * - Demo data jika server tidak tersedia
- * ============================================================
+ * src/screens/PosScreen.js — Kasir v2
+ * Offline product cache + theme support + improved UI
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, FlatList, TouchableOpacity, Dimensions,
-  StyleSheet, ActivityIndicator, Image, Alert,
+  StyleSheet, ActivityIndicator, Image, Alert, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
-import { useCart } from '../context/CartContext';
-import { productsAPI, categoriesAPI, getImageUrl } from '../services/api';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
-import { formatCurrency } from '../utils/helpers';
 
-// ── Data Demo (fallback jika server tidak tersedia) ──────────
+import { useCart } from '../context/CartContext';
+import { useTheme } from '../context/ThemeContext';
+import { productsAPI, categoriesAPI, getImageUrl } from '../services/api';
+import {
+  offlineProducts, offlineCategories, isOnline,
+} from '../services/offlineService';
+import { FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
+import { formatCurrency } from '../utils/helpers';
+import { OfflineBanner, Skeleton } from '../components/UIComponents';
+
+const { width: SW } = Dimensions.get('window');
+const CARD_WIDTH = (SW - SPACING.lg * 2 - SPACING.md) / 2;
+
 const DEMO_PRODUCTS = [
   { id: 1, name: 'Nasi Goreng Spesial', category_name: 'Makanan', selling_price: 25000, stock: 50, barcode: '001' },
   { id: 2, name: 'Mie Goreng', category_name: 'Makanan', selling_price: 20000, stock: 30, barcode: '002' },
   { id: 3, name: 'Es Teh Manis', category_name: 'Minuman', selling_price: 5000, stock: 100, barcode: '003' },
   { id: 4, name: 'Jus Alpukat', category_name: 'Minuman', selling_price: 15000, stock: 25, barcode: '004' },
   { id: 5, name: 'Sate Ayam 10pcs', category_name: 'Makanan', selling_price: 30000, stock: 20, barcode: '005' },
-  { id: 6, name: 'Bakso Kuah', category_name: 'Makanan', selling_price: 22000, stock: 40, barcode: '006' },
-  { id: 7, name: 'Air Mineral 600ml', category_name: 'Minuman', selling_price: 4000, stock: 200, barcode: '007' },
-  { id: 8, name: 'Kopi Hitam', category_name: 'Minuman', selling_price: 8000, stock: 60, barcode: '008' },
-  { id: 9, name: 'Roti Bakar', category_name: 'Snack', selling_price: 18000, stock: 15, barcode: '009' },
-  { id: 10, name: 'Keripik Singkong', category_name: 'Snack', selling_price: 10000, stock: 45, barcode: '010' },
+  { id: 6, name: 'Air Mineral 600ml', category_name: 'Minuman', selling_price: 4000, stock: 200, barcode: '007' },
+  { id: 7, name: 'Kopi Hitam', category_name: 'Minuman', selling_price: 8000, stock: 60, barcode: '008' },
+  { id: 8, name: 'Roti Bakar', category_name: 'Snack', selling_price: 18000, stock: 15, barcode: '009' },
 ];
 
 const DEMO_CATEGORIES = [
@@ -45,305 +43,354 @@ const DEMO_CATEGORIES = [
   { id: 3, name: 'Snack' },
 ];
 
+const CategoryChip = ({ cat, active, onPress, colors }) => (
+  <TouchableOpacity
+    style={[
+      ccS.chip,
+      {
+        backgroundColor: active ? colors.primary : colors.bgCard,
+        borderColor: active ? colors.primary : colors.border,
+      }
+    ]}
+    onPress={onPress}
+    activeOpacity={0.75}
+  >
+    <Text style={[ccS.txt, { color: active ? '#fff' : colors.textMuted }]}>{cat.name}</Text>
+  </TouchableOpacity>
+);
+
+const ccS = StyleSheet.create({
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1, marginRight: SPACING.sm },
+  txt: { fontSize: FONTS.sm, fontWeight: '600' },
+});
+
+const ProductCard = ({ item, onPress, isAdded, colors, isDark }) => {
+  const scaleAnim = React.useRef(new Animated.Value(1)).current;
+  const imageUri = getImageUrl(item);
+  const outOfStock = item.stock <= 0;
+  const lowStock = !outOfStock && item.stock <= 5;
+
+  useEffect(() => {
+    if (isAdded) {
+      Animated.sequence([
+        Animated.timing(scaleAnim, { toValue: 0.94, duration: 80, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, friction: 4, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [isAdded]);
+
+  return (
+    <Animated.View style={[{ transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        style={[
+          pcS.card,
+          {
+            backgroundColor: colors.bgCard,
+            borderColor: isAdded ? colors.success : outOfStock ? colors.border : colors.border,
+            borderWidth: isAdded ? 2 : 1,
+            width: CARD_WIDTH,
+          },
+          SHADOW.sm,
+        ]}
+        onPress={() => onPress(item)}
+        disabled={outOfStock}
+        activeOpacity={0.82}
+      >
+        {/* Image */}
+        <View style={pcS.imgWrap}>
+          {imageUri ? (
+            <Image source={{ uri: imageUri }} style={pcS.img} />
+          ) : (
+            <View style={[pcS.imgPlaceholder, { backgroundColor: colors.bgSurface || colors.bgMedium }]}>
+              <Ionicons name="cube-outline" size={28} color={colors.textDark} />
+            </View>
+          )}
+
+          {/* Overlay: out of stock */}
+          {outOfStock && (
+            <View style={pcS.soldOverlay}>
+              <Text style={pcS.soldText}>Habis</Text>
+            </View>
+          )}
+
+          {/* Badge: low stock */}
+          {lowStock && !outOfStock && (
+            <View style={[pcS.badge, { backgroundColor: colors.warning }]}>
+              <Text style={pcS.badgeTxt}>Sisa {item.stock}</Text>
+            </View>
+          )}
+
+          {/* Add feedback */}
+          {isAdded && (
+            <View style={[pcS.addedOverlay, { backgroundColor: colors.success + 'CC' }]}>
+              <Ionicons name="checkmark" size={28} color="#fff" />
+            </View>
+          )}
+        </View>
+
+        {/* Info */}
+        <View style={pcS.info}>
+          <Text style={[pcS.name, { color: colors.textWhite }]} numberOfLines={2}>{item.name}</Text>
+          <Text style={[pcS.category, { color: colors.textDark }]}>{item.category_name || 'Umum'}</Text>
+          <View style={pcS.priceRow}>
+            <Text style={[pcS.price, { color: colors.primary }]}>{formatCurrency(item.selling_price)}</Text>
+            <View style={[pcS.addBtn, { backgroundColor: outOfStock ? colors.textDark : colors.primary + '20' }]}>
+              <Ionicons name="add" size={16} color={outOfStock ? colors.textDark : colors.primary} />
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+const pcS = StyleSheet.create({
+  card: { borderRadius: RADIUS.lg, overflow: 'hidden', marginBottom: SPACING.md },
+  imgWrap: { height: 110, position: 'relative' },
+  img: { width: '100%', height: '100%', resizeMode: 'cover' },
+  imgPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  soldOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  soldText: { color: '#fff', fontWeight: '800', fontSize: FONTS.sm, letterSpacing: 0.5 },
+  addedOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  badge: {
+    position: 'absolute', top: 6, left: 6,
+    borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 2,
+  },
+  badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  info: { padding: SPACING.sm, gap: 3 },
+  name: { fontSize: FONTS.sm, fontWeight: '600', lineHeight: 18 },
+  category: { fontSize: 11 },
+  priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 3 },
+  price: { fontSize: FONTS.sm, fontWeight: '800' },
+  addBtn: { width: 26, height: 26, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+});
+
 export default function PosScreen({ navigation }) {
   const { addItem, totalItems } = useCart();
+  const { colors, isDark } = useTheme();
 
-  const [products, setProducts] = useState([]);
-  const [filteredProducts, setFilteredProducts] = useState([]);
-  const [categories, setCategories] = useState(DEMO_CATEGORIES);
-  const [selectedCategory, setSelectedCategory] = useState(0); // 0 = Semua
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isDemo, setIsDemo] = useState(false); // Apakah pakai data demo?
-  const [addedFeedback, setAddedFeedback] = useState({}); // Animasi saat tambah ke cart
+  const [products, setProducts]             = useState([]);
+  const [filteredProducts, setFiltered]     = useState([]);
+  const [categories, setCategories]         = useState(DEMO_CATEGORIES);
+  const [selectedCategory, setSelectedCat] = useState(0);
+  const [searchQuery, setSearchQuery]       = useState('');
+  const [isLoading, setIsLoading]           = useState(true);
+  const [isDemo, setIsDemo]                 = useState(false);
+  const [addedFeedback, setAddedFeedback]   = useState({});
+  const [online, setOnline]                 = useState(isOnline());
 
-  /**
-   * Muat produk dan kategori dari API
-   */
   const loadData = async () => {
     setIsLoading(true);
+    const isConn = isOnline();
+    setOnline(isConn);
+
     try {
-      // Muat produk dan kategori secara paralel
-      const [prodResult, catResult] = await Promise.all([
-        productsAPI.getAll(),
-        categoriesAPI.getAll(),
-      ]);
+      if (isConn) {
+        const [prodResult, catResult] = await Promise.all([
+          productsAPI.getAll(),
+          categoriesAPI.getAll(),
+        ]);
 
-      if (prodResult.success && Array.isArray(prodResult.data)) {
-        setProducts(prodResult.data);
-        setFilteredProducts(prodResult.data);
-        setIsDemo(false);
+        if (prodResult.success && Array.isArray(prodResult.data)) {
+          setProducts(prodResult.data);
+          setFiltered(prodResult.data);
+          await offlineProducts.save(prodResult.data);
+          setIsDemo(false);
+        } else {
+          throw new Error('API failed');
+        }
+
+        if (catResult.success && Array.isArray(catResult.data)) {
+          const cats = [{ id: 0, name: 'Semua' }, ...catResult.data];
+          setCategories(cats);
+          await offlineCategories.save(cats);
+        }
       } else {
-        // Fallback ke data demo jika API gagal
-        setProducts(DEMO_PRODUCTS);
-        setFilteredProducts(DEMO_PRODUCTS);
-        setIsDemo(true);
-      }
-
-      if (catResult.success && Array.isArray(catResult.data)) {
-        setCategories([{ id: 0, name: 'Semua' }, ...catResult.data]);
+        // Load from cache
+        const cachedProds = await offlineProducts.loadForce();
+        const cachedCats = await offlineCategories.load();
+        if (cachedProds) {
+          setProducts(cachedProds);
+          setFiltered(cachedProds);
+          setIsDemo(false);
+        } else {
+          setProducts(DEMO_PRODUCTS);
+          setFiltered(DEMO_PRODUCTS);
+          setIsDemo(true);
+        }
+        if (cachedCats) setCategories(cachedCats);
       }
     } catch {
-      setProducts(DEMO_PRODUCTS);
-      setFilteredProducts(DEMO_PRODUCTS);
-      setIsDemo(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Reload saat halaman difokus (misal setelah kembali dari cart)
-  useFocusEffect(useCallback(() => { loadData(); }, []));
-
-  /**
-   * Filter produk saat searchQuery atau selectedCategory berubah
-   */
-  useEffect(() => {
-    let result = [...products];
-
-    // Filter berdasarkan kategori
-    if (selectedCategory !== 0) {
-      const cat = categories.find(c => c.id === selectedCategory);
-      if (cat) {
-        result = result.filter(p =>
-          p.category_name?.toLowerCase() === cat.name.toLowerCase()
-        );
+      // Try cache, fallback to demo
+      const cached = await offlineProducts.loadForce();
+      if (cached) {
+        setProducts(cached);
+        setFiltered(cached);
+        setIsDemo(false);
+      } else {
+        setProducts(DEMO_PRODUCTS);
+        setFiltered(DEMO_PRODUCTS);
+        setIsDemo(true);
       }
     }
 
-    // Filter berdasarkan teks
+    setIsLoading(false);
+  };
+
+  useFocusEffect(useCallback(() => { loadData(); }, []));
+
+  useEffect(() => {
+    let result = [...products];
+    if (selectedCategory !== 0) {
+      const cat = categories.find(c => c.id === selectedCategory);
+      if (cat) result = result.filter(p => p.category_name?.toLowerCase() === cat.name.toLowerCase());
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(p =>
-        p.name.toLowerCase().includes(q) ||
-        (p.barcode && p.barcode.includes(q))
+        p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q))
       );
     }
-
-    setFilteredProducts(result);
+    setFiltered(result);
   }, [searchQuery, selectedCategory, products, categories]);
 
-  /**
-   * Tambahkan produk ke keranjang dengan feedback visual
-   */
   const handleAddToCart = (product) => {
     if (product.stock <= 0) {
       Alert.alert('Stok Habis', `${product.name} sedang tidak tersedia.`);
       return;
     }
-
     addItem(product);
-
-    // Tampilkan tanda centang ✓ selama 800ms di kartu produk
     setAddedFeedback(prev => ({ ...prev, [product.id]: true }));
     setTimeout(() => {
       setAddedFeedback(prev => ({ ...prev, [product.id]: false }));
-    }, 800);
+    }, 700);
   };
 
-  /**
-   * Buka scanner barcode kamera
-   * Callback onScan akan dipanggil saat barcode berhasil terdeteksi
-   */
   const handleOpenScanner = () => {
     navigation.navigate('BarcodeScanner', {
       onScan: async (barcode) => {
-        // Cari produk berdasarkan barcode yang di-scan
         try {
-          const result = await productsAPI.searchByBarcode(barcode);
+          const result = await productsAPI.getByBarcode?.(barcode) || { success: false };
           if (result.success && result.data) {
-            // Produk ditemukan → langsung tambah ke cart
             handleAddToCart(result.data);
-            Alert.alert(
-              '✅ Produk Ditambahkan',
-              `${result.data.name}\n${formatCurrency(result.data.selling_price)}`,
-              [{ text: 'OK' }]
-            );
           } else {
-            // Coba cari secara manual di produk yang sudah dimuat
-            const found = products.find(p =>
-              p.barcode === barcode || p.barcode === barcode.trim()
-            );
-            if (found) {
-              handleAddToCart(found);
-            } else {
-              Alert.alert(
-                '❌ Barcode Tidak Ditemukan',
-                `Barcode: ${barcode}\n\nProduk dengan barcode ini tidak ada di database.`,
-                [{ text: 'OK' }]
-              );
-            }
+            const found = products.find(p => p.barcode === barcode || p.barcode === barcode.trim());
+            if (found) handleAddToCart(found);
+            else Alert.alert('❌ Tidak Ditemukan', `Barcode: ${barcode}`);
           }
-        } catch (error) {
-          // Jika API error, cari lokal
+        } catch {
           const found = products.find(p => p.barcode === barcode);
-          if (found) {
-            handleAddToCart(found);
-          } else {
-            Alert.alert('Error', `Tidak bisa mencari barcode: ${barcode}`);
-          }
+          if (found) handleAddToCart(found);
         }
       },
     });
   };
 
-  /**
-   * Render kartu produk di grid
-   */
-  const renderProduct = ({ item }) => {
-    const isJustAdded = addedFeedback[item.id];
-    const isOutOfStock = item.stock <= 0;
-    const imageUri = getImageUrl(item);
+  const s = getStyles(colors, isDark);
 
-    return (
-      <TouchableOpacity
-        style={[
-          styles.productCard,
-          isOutOfStock && styles.productCardDisabled,
-          isJustAdded && styles.productCardAdded,
-        ]}
-        onPress={() => handleAddToCart(item)}
-        disabled={isOutOfStock}
-        activeOpacity={0.8}
-      >
-        {/* Foto produk atau placeholder */}
-        <View style={styles.productImageContainer}>
-          {imageUri ? (
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.productImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <View style={styles.productImagePlaceholder}>
-              <Ionicons name="cube-outline" size={28} color={COLORS.textDark} />
-            </View>
-          )}
-
-          {/* Badge stok habis */}
-          {isOutOfStock && (
-            <View style={styles.stockBadge}>
-              <Text style={styles.stockBadgeText}>Habis</Text>
-            </View>
-          )}
-
-          {/* Badge stok sedikit */}
-          {!isOutOfStock && item.stock <= 5 && (
-            <View style={[styles.stockBadge, { backgroundColor: COLORS.warning }]}>
-              <Text style={styles.stockBadgeText}>Sisa {item.stock}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Info produk */}
-        <View style={styles.productInfo}>
-          <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-          <Text style={styles.productCategory}>{item.category_name || 'Umum'}</Text>
-          <Text style={styles.productPrice}>{formatCurrency(item.selling_price)}</Text>
-        </View>
-
-        {/* Tombol tambah / centang feedback */}
-        <View style={[styles.addButton, isJustAdded && styles.addButtonSuccess]}>
-          <Ionicons
-            name={isJustAdded ? 'checkmark' : 'add'}
-            size={18}
-            color={COLORS.textWhite}
-          />
-        </View>
-      </TouchableOpacity>
-    );
-  };
+  const renderProduct = ({ item }) => (
+    <ProductCard
+      item={item}
+      onPress={handleAddToCart}
+      isAdded={!!addedFeedback[item.id]}
+      colors={colors}
+      isDark={isDark}
+    />
+  );
 
   return (
-    <View style={styles.container}>
+    <View style={[s.container, { backgroundColor: colors.bgDark }]}>
+      {!online && !isDemo && <OfflineBanner />}
 
-      {/* ── Header ── */}
-      <View style={styles.header}>
+      {/* Header */}
+      <LinearGradient
+        colors={isDark ? ['#12121F', '#1A1A2E'] : ['#FFFFFF', '#F8F8FF']}
+        style={s.header}
+      >
         <View>
-          <Text style={styles.headerTitle}>Kasir</Text>
-          {isDemo && (
-            <Text style={styles.demoLabel}>⚠️ Mode Demo (Server offline)</Text>
-          )}
+          <Text style={[s.headerTitle, { color: colors.textWhite }]}>Kasir</Text>
+          {isDemo && <Text style={[s.demoLabel, { color: colors.warning }]}>⚠️ Demo Mode</Text>}
+          {!online && !isDemo && <Text style={[s.demoLabel, { color: colors.warning }]}>📦 Dari cache</Text>}
         </View>
-        {/* Tombol keranjang dengan badge */}
-        <TouchableOpacity
-          style={styles.cartButton}
-          onPress={() => navigation.navigate('Cart')}
-        >
-          <Ionicons name="cart" size={22} color="#fff" />
-          {totalItems > 0 && (
-            <View style={styles.cartBadge}>
-              <Text style={styles.cartBadgeText}>{totalItems}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-      </View>
 
-      {/* ── Search Bar + Tombol Scanner ── */}
-      <View style={styles.searchSection}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={18} color={COLORS.textMuted} />
+        <View style={{ flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' }}>
+          <TouchableOpacity
+            style={[s.scanButton, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}
+            onPress={handleOpenScanner}
+          >
+            <Ionicons name="barcode-outline" size={20} color={colors.primary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[s.cartButton, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('Cart')}
+          >
+            <Ionicons name="cart" size={20} color="#fff" />
+            {totalItems > 0 && (
+              <View style={[s.cartBadge, { backgroundColor: colors.danger }]}>
+                <Text style={s.cartBadgeTxt}>{totalItems > 9 ? '9+' : totalItems}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+
+      {/* Search */}
+      <View style={[s.searchWrap, { backgroundColor: isDark ? colors.bgMedium : '#FFFFFF', borderBottomColor: colors.border }]}>
+        <View style={[s.searchBar, { backgroundColor: colors.bgInput, borderColor: colors.border }]}>
+          <Ionicons name="search-outline" size={16} color={colors.textMuted} />
           <TextInput
-            style={styles.searchInput}
-            placeholder="Cari nama produk..."
-            placeholderTextColor={COLORS.textDark}
+            style={[s.searchInput, { color: colors.textWhite }]}
+            placeholder="Cari produk..."
+            placeholderTextColor={colors.textDark}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            returnKeyType="search"
           />
           {searchQuery ? (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+              <Ionicons name="close-circle" size={16} color={colors.textMuted} />
             </TouchableOpacity>
           ) : null}
         </View>
-
-        {/* Tombol buka kamera scan barcode */}
-        <TouchableOpacity
-          style={styles.scanButton}
-          onPress={handleOpenScanner}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="barcode-outline" size={22} color="#fff" />
-        </TouchableOpacity>
       </View>
 
-      {/* ── Filter Kategori ── */}
-      <FlatList
-        data={categories}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={item => item.id.toString()}
-        contentContainerStyle={styles.categoryList}
-        style={styles.categoryScroll}
-        renderItem={({ item }) => (
-          <TouchableOpacity
-            style={[
-              styles.categoryChip,
-              selectedCategory === item.id && styles.categoryChipActive,
-            ]}
-            onPress={() => setSelectedCategory(item.id)}
-          >
-            <Text style={[
-              styles.categoryChipText,
-              selectedCategory === item.id && styles.categoryChipTextActive,
-            ]}>
-              {item.name}
-            </Text>
-          </TouchableOpacity>
-        )}
-      />
+      {/* Category Filter */}
+      <View style={[s.catWrap, { backgroundColor: isDark ? colors.bgMedium : '#FFFFFF', borderBottomColor: colors.border }]}>
+        <FlatList
+          data={categories}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm }}
+          keyExtractor={item => item.id.toString()}
+          renderItem={({ item }) => (
+            <CategoryChip
+              cat={item}
+              active={selectedCategory === item.id}
+              onPress={() => setSelectedCat(item.id)}
+              colors={colors}
+            />
+          )}
+        />
+      </View>
 
-      {/* Jumlah hasil pencarian */}
-      <Text style={styles.resultCount}>
-        {filteredProducts.length} produk ditemukan
+      {/* Result count */}
+      <Text style={[s.resultCount, { color: colors.textDark }]}>
+        {filteredProducts.length} produk
       </Text>
 
-      {/* ── Grid Produk ── */}
+      {/* Product Grid */}
       {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Memuat produk...</Text>
+        <View style={s.skeletonGrid}>
+          {[1, 2, 3, 4].map(i => (
+            <Skeleton key={i} height={200} width={CARD_WIDTH} style={{ borderRadius: RADIUS.lg }} />
+          ))}
         </View>
       ) : (
         <FlatList
@@ -351,329 +398,111 @@ export default function PosScreen({ navigation }) {
           renderItem={renderProduct}
           keyExtractor={item => item.id.toString()}
           numColumns={2}
-          columnWrapperStyle={styles.row}
-          contentContainerStyle={styles.productList}
+          columnWrapperStyle={s.row}
+          contentContainerStyle={s.productList}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="search-outline" size={48} color={COLORS.textDark} />
-              <Text style={styles.emptyTitle}>Produk Tidak Ditemukan</Text>
-              <Text style={styles.emptyText}>
-                Coba kata kunci berbeda atau scan barcode produk
-              </Text>
+            <View style={s.emptyWrap}>
+              <Ionicons name="search-outline" size={48} color={colors.textDark} />
+              <Text style={[s.emptyTitle, { color: colors.textMuted }]}>Produk Tidak Ditemukan</Text>
+              <Text style={[s.emptyTxt, { color: colors.textDark }]}>Coba kata kunci berbeda</Text>
             </View>
           }
         />
       )}
 
-      {/* ── Floating Button Keranjang ── */}
+      {/* Floating Cart */}
       {totalItems > 0 && (
         <TouchableOpacity
-          style={styles.floatingCart}
+          style={s.floatingCart}
           onPress={() => navigation.navigate('Cart')}
           activeOpacity={0.9}
         >
-          <View style={styles.floatingCartBadge}>
-            <Text style={styles.floatingCartBadgeText}>{totalItems}</Text>
-          </View>
-          <Text style={styles.floatingCartText}>Lihat Keranjang</Text>
-          <Ionicons name="chevron-forward" size={18} color="#fff" />
+          <LinearGradient
+            colors={['#6C63FF', '#8B85FF']}
+            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+            style={s.floatingInner}
+          >
+            <View style={[s.floatingBadge, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
+              <Text style={s.floatingBadgeTxt}>{totalItems}</Text>
+            </View>
+            <Text style={s.floatingTxt}>Lihat Keranjang</Text>
+            <Ionicons name="chevron-forward" size={18} color="#fff" />
+          </LinearGradient>
         </TouchableOpacity>
       )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bgDark,
-  },
-
-  // ── Header ──
+const getStyles = (colors, isDark) => StyleSheet.create({
+  container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.md,
-    backgroundColor: COLORS.bgMedium,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingTop: 50, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md,
   },
-  headerTitle: {
-    fontSize: FONTS.xl,
-    fontWeight: FONTS.bold,
-    color: COLORS.textWhite,
-  },
-  demoLabel: {
-    fontSize: FONTS.xs,
-    color: COLORS.warning,
-    marginTop: 2,
+  headerTitle: { fontSize: FONTS.xl, fontWeight: '800', letterSpacing: -0.5 },
+  demoLabel: { fontSize: FONTS.xs, fontWeight: '600', marginTop: 2 },
+
+  scanButton: {
+    width: 42, height: 42, borderRadius: RADIUS.md,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
   cartButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    width: 42, height: 42, borderRadius: RADIUS.md,
+    alignItems: 'center', justifyContent: 'center', position: 'relative',
   },
   cartBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    backgroundColor: COLORS.danger,
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-    borderWidth: 1.5,
-    borderColor: COLORS.bgMedium,
+    position: 'absolute', top: -5, right: -5,
+    width: 18, height: 18, borderRadius: 9,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: colors.bgDark,
   },
-  cartBadgeText: {
-    fontSize: 10,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
+  cartBadgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
 
-  // ── Search ──
-  searchSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    backgroundColor: COLORS.bgMedium,
-  },
+  searchWrap: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, borderBottomWidth: 1 },
   searchBar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.sm,
-    backgroundColor: COLORS.bgInput,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md,
-    height: 46,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    borderRadius: RADIUS.md, paddingHorizontal: SPACING.md,
+    height: 44, borderWidth: 1,
   },
-  searchInput: {
-    flex: 1,
-    color: COLORS.textWhite,
-    fontSize: FONTS.md,
-  },
-  // Tombol scan barcode (kotak ungu di sebelah search)
-  scanButton: {
-    width: 46,
-    height: 46,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...SHADOW.sm,
-  },
+  searchInput: { flex: 1, fontSize: FONTS.md },
 
-  // ── Kategori ──
-  categoryScroll: {
-    backgroundColor: COLORS.bgMedium,
-    maxHeight: 60,
-    flexShrink: 0,
-  },
-  categoryList: {
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.sm,
-    paddingBottom: SPACING.md,
-    gap: SPACING.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  categoryChip: {
-    paddingHorizontal: SPACING.md,
-    paddingVertical: 7,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.bgCard,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    alignSelf: 'flex-start',
-    flexShrink: 0,
-  },
-  categoryChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
-  },
-  categoryChipText: {
-    fontSize: FONTS.sm,
-    color: COLORS.textMuted,
-    fontWeight: FONTS.medium,
-  },
-  categoryChipTextActive: {
-    color: '#fff',
-  },
+  catWrap: { borderBottomWidth: 1 },
 
   resultCount: {
-    fontSize: FONTS.xs,
-    color: COLORS.textDark,
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.sm,
-    paddingBottom: 4,
+    fontSize: FONTS.xs, paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.sm, paddingBottom: 2,
   },
 
-  // ── Loading ──
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.md,
-  },
-  loadingText: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.md,
+  skeletonGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    gap: SPACING.md, padding: SPACING.lg,
   },
 
-  // ── Grid Produk ──
-  productList: {
-    padding: SPACING.lg,
-    paddingBottom: 100,
-  },
-  row: {
-    gap: SPACING.md,
-    marginBottom: SPACING.md,
-    justifyContent: 'flex-start',
-  },
-  productCard: {
-    width: (Dimensions.get('window').width - (SPACING.lg * 2) - SPACING.md) / 2,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...SHADOW.sm,
-  },
-  productCardDisabled: {
-    opacity: 0.5,
-  },
-  productCardAdded: {
-    borderColor: COLORS.success,
-    borderWidth: 2,
-  },
-  productImageContainer: {
-    height: 100,
-    position: 'relative',
-  },
-  productImage: {
-    width: '100%',
-    height: '100%',
-  },
-  productImagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: COLORS.bgMedium,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stockBadge: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    backgroundColor: COLORS.danger,
-    borderRadius: RADIUS.full,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  stockBadgeText: {
-    fontSize: 9,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  productInfo: {
-    padding: SPACING.sm,
-    gap: 2,
-  },
-  productName: {
-    fontSize: FONTS.sm,
-    color: COLORS.textWhite,
-    fontWeight: FONTS.semibold,
-    lineHeight: 18,
-  },
-  productCategory: {
-    fontSize: FONTS.xs,
-    color: COLORS.textMuted,
-  },
-  productPrice: {
-    fontSize: FONTS.md,
-    color: COLORS.primary,
-    fontWeight: FONTS.bold,
-    marginTop: 2,
-  },
-  addButton: {
-    position: 'absolute',
-    bottom: SPACING.sm,
-    right: SPACING.sm,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addButtonSuccess: {
-    backgroundColor: COLORS.success,
-  },
+  row: { gap: SPACING.md, justifyContent: 'flex-start' },
+  productList: { padding: SPACING.lg, paddingBottom: 100 },
 
-  // ── Empty State ──
-  emptyContainer: {
-    alignItems: 'center',
-    paddingTop: 60,
-    gap: SPACING.md,
-  },
-  emptyTitle: {
-    color: COLORS.textMuted,
-    fontSize: FONTS.lg,
-    fontWeight: FONTS.semibold,
-  },
-  emptyText: {
-    color: COLORS.textDark,
-    fontSize: FONTS.sm,
-    textAlign: 'center',
-    paddingHorizontal: SPACING.xl,
-  },
+  emptyWrap: { alignItems: 'center', paddingTop: 60, gap: SPACING.md },
+  emptyTitle: { fontSize: FONTS.lg, fontWeight: '700' },
+  emptyTxt: { fontSize: FONTS.sm },
 
-  // ── Floating Cart Button ──
   floatingCart: {
-    position: 'absolute',
-    bottom: 20,
-    left: SPACING.xl,
-    right: SPACING.xl,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.lg,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    ...SHADOW.lg,
+    position: 'absolute', bottom: 20,
+    left: SPACING.xl, right: SPACING.xl,
+    borderRadius: RADIUS.lg, overflow: 'hidden',
+    elevation: 12, shadowColor: '#6C63FF',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35, shadowRadius: 14,
   },
-  floatingCartBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: SPACING.sm,
+  floatingInner: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: SPACING.lg, paddingVertical: 14,
   },
-  floatingCartBadgeText: {
-    color: '#fff',
-    fontSize: FONTS.sm,
-    fontWeight: FONTS.bold,
+  floatingBadge: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center', marginRight: SPACING.sm,
   },
-  floatingCartText: {
-    flex: 1,
-    color: '#fff',
-    fontSize: FONTS.md,
-    fontWeight: FONTS.semibold,
-    textAlign: 'center',
-  },
+  floatingBadgeTxt: { color: '#fff', fontSize: FONTS.sm, fontWeight: '800' },
+  floatingTxt: { flex: 1, color: '#fff', fontSize: FONTS.md, fontWeight: '700', textAlign: 'center' },
 });

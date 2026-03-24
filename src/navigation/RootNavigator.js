@@ -1,18 +1,24 @@
 /**
- * src/navigation/RootNavigator.js
+ * src/navigation/RootNavigator.js — v2
+ * Custom tab bar dengan theme support + animasi
  */
 
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, ActivityIndicator } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import {
+  View, Text, TouchableOpacity, StyleSheet, Platform,
+  ActivityIndicator, Animated,
+} from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
-import { COLORS } from '../utils/theme';
+import { FONTS, SPACING, RADIUS } from '../utils/theme';
 
+// Screens
 import RegisterScreen from '../screens/RegisterScreen';
 import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
@@ -38,29 +44,135 @@ import ProductFormScreen from '../screens/ProductFormScreen';
 import ServerSettingsScreen from '../screens/ServerSettingsScreen';
 
 const Stack = createStackNavigator();
-const Tab = createBottomTabNavigator();
+const Tab   = createBottomTabNavigator();
 
+// ── Loading Screen ────────────────────────────────────────────
 function LoadingScreen() {
+  const { colors } = useTheme();
   return (
-    <View style={{ flex: 1, backgroundColor: '#1a1a2e', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-      <ActivityIndicator size="large" color={COLORS.primary} />
-      <Text style={{ color: COLORS.textMuted, fontSize: 14 }}>Memuat aplikasi...</Text>
+    <View style={{ flex: 1, backgroundColor: colors.bgDark, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+      <ActivityIndicator size="large" color={colors.primary} />
+      <Text style={{ color: colors.textMuted, fontSize: FONTS.sm }}>Memuat aplikasi...</Text>
     </View>
   );
 }
 
-function CustomTabBar({ state, navigation }) {
-  const { totalItems } = useCart();
-  const tabs = [
-    { name: 'Dashboard', label: 'Beranda', icon: 'home-outline', active: 'home', lib: 'Ion' },
-    { name: 'POS', label: 'Kasir', icon: 'point-of-sale', active: 'point-of-sale', lib: 'MCo' },
-    { name: 'Products', label: 'Produk', icon: 'package-variant-closed', active: 'package-variant', lib: 'MCo' },
-    { name: 'Transactions', label: 'Transaksi', icon: 'receipt-outline', active: 'receipt', lib: 'Ion' },
-    { name: 'Profile', label: 'Profil', icon: 'person-outline', active: 'person', lib: 'Ion' },
-  ];
+// ── Tab Item dengan Animasi ────────────────────────────────────
+const TabItem = ({ tab, focused, onPress, colors, isDark }) => {
+  const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.95)).current;
+  const opacityAnim = useRef(new Animated.Value(focused ? 1 : 0.6)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, { toValue: focused ? 1 : 0.95, friction: 6, useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: focused ? 1 : 0.6, duration: 150, useNativeDriver: true }),
+    ]).start();
+  }, [focused]);
+
+  const iconName = focused ? tab.active : tab.icon;
+  const iconColor = focused ? colors.primary : colors.tabInactive;
+
   return (
-    <View style={S.outerWrap}>
-      <View style={S.bar}>
+    <TouchableOpacity
+      onPress={onPress}
+      style={tabS.tab}
+      activeOpacity={0.7}
+    >
+      <Animated.View style={[tabS.inner, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}>
+        {focused && (
+          <View style={[tabS.activePill, { backgroundColor: colors.primary + '18' }]} />
+        )}
+        {tab.lib === 'MCo'
+          ? <MaterialCommunityIcons name={iconName} size={23} color={iconColor} />
+          : <Ionicons name={iconName} size={23} color={iconColor} />
+        }
+        <Text style={[tabS.label, { color: focused ? colors.primary : colors.tabInactive }]}>
+          {tab.label}
+        </Text>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+
+// ── POS Tab (center, elevated) ────────────────────────────────
+const PosTabItem = ({ focused, onPress, totalItems, colors }) => {
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (focused) {
+      Animated.sequence([
+        Animated.timing(scaleAnim, { toValue: 0.9, duration: 80, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, friction: 4, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [focused]);
+
+  return (
+    <TouchableOpacity onPress={onPress} style={tabS.posOuter} activeOpacity={0.85}>
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+        <View style={[
+          tabS.posCircle,
+          {
+            backgroundColor: focused ? '#5A52D5' : colors.primary,
+            shadowColor: colors.primary,
+          }
+        ]}>
+          <MaterialCommunityIcons name="point-of-sale" size={26} color="#fff" />
+          {totalItems > 0 && (
+            <View style={[tabS.badge, { backgroundColor: colors.danger }]}>
+              <Text style={tabS.badgeTxt}>{totalItems > 9 ? '9+' : totalItems}</Text>
+            </View>
+          )}
+        </View>
+      </Animated.View>
+      <Text style={[tabS.label, { color: focused ? colors.primary : colors.tabInactive }]}>
+        Kasir
+      </Text>
+    </TouchableOpacity>
+  );
+};
+
+const tabS = StyleSheet.create({
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  inner: { alignItems: 'center', gap: 3, paddingTop: 6, position: 'relative', paddingHorizontal: 12 },
+  activePill: {
+    position: 'absolute', top: 4, left: 0, right: 0,
+    height: 32, borderRadius: RADIUS.md,
+  },
+  label: { fontSize: 10, fontWeight: '600', letterSpacing: 0.1 },
+  posOuter: { flex: 1, alignItems: 'center', marginTop: -20 },
+  posCircle: {
+    width: 58, height: 58, borderRadius: 20,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 12, shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4, shadowRadius: 12,
+    borderWidth: 3, borderColor: 'transparent',
+  },
+  badge: {
+    position: 'absolute', top: -5, right: -5,
+    width: 19, height: 19, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: '#fff',
+  },
+  badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
+});
+
+// ── Custom Tab Bar ────────────────────────────────────────────
+function CustomTabBar({ state, navigation }) {
+  const { colors, isDark } = useTheme();
+  const { totalItems } = useCart();
+
+  const tabs = [
+    { name: 'Dashboard',    label: 'Beranda',    icon: 'home-outline',        active: 'home',           lib: 'Ion' },
+    { name: 'POS',          label: 'Kasir',      icon: 'point-of-sale',       active: 'point-of-sale',  lib: 'MCo' },
+    { name: 'Products',     label: 'Produk',     icon: 'cube-outline',        active: 'cube',           lib: 'Ion' },
+    { name: 'Transactions', label: 'Transaksi',  icon: 'receipt-outline',     active: 'receipt',        lib: 'Ion' },
+    { name: 'Profile',      label: 'Profil',     icon: 'person-outline',      active: 'person',         lib: 'Ion' },
+  ];
+
+  return (
+    <View style={[tabBarS.outerWrap, { backgroundColor: colors.tabBg, borderTopColor: colors.border }]}>
+      <View style={tabBarS.bar}>
         {state.routes.map((route, idx) => {
           const tab = tabs.find(t => t.name === route.name);
           if (!tab) return null;
@@ -69,30 +181,28 @@ function CustomTabBar({ state, navigation }) {
             const ev = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
             if (!focused && !ev.defaultPrevented) navigation.navigate(route.name);
           };
-          const iconName = focused ? tab.active : tab.icon;
-          const iconColor = focused ? COLORS.primary : COLORS.textMuted;
-          const IconComp = tab.lib === 'MCo' ? MaterialCommunityIcons : Ionicons;
+
           if (route.name === 'POS') {
             return (
-              <TouchableOpacity key={route.key} onPress={onPress} style={S.posOuter} activeOpacity={0.85}>
-                <View style={[S.posCircle, focused && S.posCircleActive]}>
-                  <MaterialCommunityIcons name="point-of-sale" size={26} color="#fff" />
-                  {totalItems > 0 && (
-                    <View style={S.badge}><Text style={S.badgeTxt}>{totalItems > 9 ? '9+' : totalItems}</Text></View>
-                  )}
-                </View>
-                <Text style={[S.lbl, focused && S.lblActive]}>{tab.label}</Text>
-              </TouchableOpacity>
+              <PosTabItem
+                key={route.key}
+                focused={focused}
+                onPress={onPress}
+                totalItems={totalItems}
+                colors={colors}
+              />
             );
           }
+
           return (
-            <TouchableOpacity key={route.key} onPress={onPress} style={S.tab} activeOpacity={0.7}>
-              {focused && <View style={S.topLine} />}
-              <View style={[S.iconBox, focused && S.iconBoxActive]}>
-                <IconComp name={iconName} size={22} color={iconColor} />
-              </View>
-              <Text style={[S.lbl, focused && S.lblActive]}>{tab.label}</Text>
-            </TouchableOpacity>
+            <TabItem
+              key={route.key}
+              tab={tab}
+              focused={focused}
+              onPress={onPress}
+              colors={colors}
+              isDark={isDark}
+            />
           );
         })}
       </View>
@@ -100,10 +210,24 @@ function CustomTabBar({ state, navigation }) {
   );
 }
 
+const tabBarS = StyleSheet.create({
+  outerWrap: { borderTopWidth: 1 },
+  bar: {
+    flexDirection: 'row', paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+    paddingTop: 4, paddingHorizontal: SPACING.sm,
+  },
+});
+
+// ── Navigators ────────────────────────────────────────────────
 function AuthNavigator() {
+  const { colors } = useTheme();
   return (
     <Stack.Navigator
-      screenOptions={{ headerShown: false, cardStyle: { backgroundColor: '#1a1a2e' } }}
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: colors.bgDark },
+        animationEnabled: true,
+      }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
@@ -115,63 +239,79 @@ function AuthNavigator() {
 function MainTabNavigator() {
   return (
     <Tab.Navigator tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      <Tab.Screen name="POS" component={PosScreen} />
-      <Tab.Screen name="Products" component={ProductsScreen} />
+      <Tab.Screen name="Dashboard"    component={DashboardScreen} />
+      <Tab.Screen name="POS"          component={PosScreen} />
+      <Tab.Screen name="Products"     component={ProductsScreen} />
       <Tab.Screen name="Transactions" component={TransactionsScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Profile"      component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
 
 function AppNavigator() {
+  const { colors } = useTheme();
   return (
     <Stack.Navigator
-      screenOptions={{ headerShown: false, cardStyle: { backgroundColor: '#1a1a2e' }, gestureEnabled: true }}
+      screenOptions={{
+        headerShown: false,
+        cardStyle: { backgroundColor: colors.bgDark },
+        gestureEnabled: true,
+        cardStyleInterpolator: ({ current: { progress } }) => ({
+          cardStyle: {
+            opacity: progress.interpolate({
+              inputRange: [0, 1], outputRange: [0, 1],
+            }),
+            transform: [{
+              translateX: progress.interpolate({
+                inputRange: [0, 1], outputRange: [20, 0],
+              }),
+            }],
+          },
+        }),
+      }}
     >
-      <Stack.Screen name="Main" component={MainTabNavigator} />
-      <Stack.Screen name="Cart" component={CartScreen} />
-      <Stack.Screen name="Checkout" component={CheckoutScreen} />
-      <Stack.Screen name="Receipt" component={ReceiptScreen} />
-      <Stack.Screen name="BarcodeScanner" component={BarcodeScannerScreen} options={{ presentation: 'modal' }} />
-      <Stack.Screen name="Reports" component={ReportsScreen} />
-      <Stack.Screen name="Analytics" component={AnalyticsScreen} />
-      <Stack.Screen name="Customers" component={CustomersScreen} />
-      <Stack.Screen name="Suppliers" component={SuppliersScreen} />
-      <Stack.Screen name="StockIn" component={StockInScreen} />
-      <Stack.Screen name="Users" component={UsersScreen} />
-      <Stack.Screen name="Promos" component={PromosScreen} />
+      <Stack.Screen name="Main"            component={MainTabNavigator} />
+      <Stack.Screen name="Cart"            component={CartScreen} />
+      <Stack.Screen name="Checkout"        component={CheckoutScreen} />
+      <Stack.Screen name="Receipt"         component={ReceiptScreen} />
+      <Stack.Screen name="BarcodeScanner"  component={BarcodeScannerScreen} options={{ presentation: 'modal' }} />
+      <Stack.Screen name="Reports"         component={ReportsScreen} />
+      <Stack.Screen name="Analytics"       component={AnalyticsScreen} />
+      <Stack.Screen name="Customers"       component={CustomersScreen} />
+      <Stack.Screen name="Suppliers"       component={SuppliersScreen} />
+      <Stack.Screen name="StockIn"         component={StockInScreen} />
+      <Stack.Screen name="Users"           component={UsersScreen} />
+      <Stack.Screen name="Promos"          component={PromosScreen} />
       <Stack.Screen name="ReceiptSettings" component={ReceiptSettingsScreen} />
       <Stack.Screen name="PrinterSettings" component={PrinterSettingsScreen} />
-      <Stack.Screen name="Categories" component={CategoriesScreen} />
-      <Stack.Screen name="ProductForm" component={ProductFormScreen} />
-      <Stack.Screen name="ServerSettings" component={ServerSettingsScreen} />
+      <Stack.Screen name="Categories"      component={CategoriesScreen} />
+      <Stack.Screen name="ProductForm"     component={ProductFormScreen} />
+      <Stack.Screen name="ServerSettings"  component={ServerSettingsScreen} />
     </Stack.Navigator>
   );
 }
 
 export default function RootNavigator() {
   const { isLoggedIn, isLoading } = useAuth();
+  const { colors, isDark } = useTheme();
+
   if (isLoading) return <LoadingScreen />;
+
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      theme={{
+        dark: isDark,
+        colors: {
+          primary: colors.primary,
+          background: colors.bgDark,
+          card: colors.bgMedium,
+          text: colors.textWhite,
+          border: colors.border,
+          notification: colors.danger,
+        },
+      }}
+    >
       {isLoggedIn ? <AppNavigator /> : <AuthNavigator />}
     </NavigationContainer>
   );
 }
-
-const S = StyleSheet.create({
-  outerWrap: { borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.bgMedium },
-  bar: { flexDirection: 'row', backgroundColor: COLORS.bgMedium, paddingBottom: Platform.OS === 'ios' ? 22 : 10, paddingTop: 4, paddingHorizontal: 4 },
-  tab: { flex: 1, alignItems: 'center', paddingTop: 6, position: 'relative' },
-  topLine: { position: 'absolute', top: 0, width: 32, height: 3, borderRadius: 2, backgroundColor: COLORS.primary },
-  iconBox: { width: 40, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  iconBoxActive: { backgroundColor: COLORS.primary + '22' },
-  lbl: { fontSize: 10, marginTop: 2, color: COLORS.textMuted, fontWeight: '500' },
-  lblActive: { color: COLORS.primary, fontWeight: '700' },
-  posOuter: { flex: 1, alignItems: 'center', marginTop: -20 },
-  posCircle: { width: 56, height: 56, borderRadius: 16, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', elevation: 10, shadowColor: COLORS.primary, shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.5, shadowRadius: 10, borderWidth: 3, borderColor: COLORS.bgMedium },
-  posCircleActive: { backgroundColor: '#5a3fd8' },
-  badge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#F44336', width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  badgeTxt: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
-});

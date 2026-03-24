@@ -1,427 +1,374 @@
 /**
- * src/screens/DashboardScreen.js — Beranda / Dashboard
- * ============================================================
- * Fitur:
- * - Statistik penjualan hari ini (omzet, jumlah transaksi)
- * - Info bulan ini (laba, margin)
- * - Daftar produk stok rendah
- * - Produk terlaris bulan ini
- * - Quick actions ke halaman lain
- * ============================================================
+ * src/screens/DashboardScreen.js — Beranda v2
+ * Offline support + Dark/Light theme + improved UI
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl,
+  RefreshControl, Animated,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
+
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { dashboardAPI } from '../services/api';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
+import {
+  offlineDashboard, isOnline, pendingTransactions, syncInfo,
+} from '../services/offlineService';
+import { FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
 import { formatCurrency } from '../utils/helpers';
+import {
+  StatCard, Card, SectionTitle, EmptyState, OfflineBanner,
+  Skeleton,
+} from '../components/UIComponents';
+
+const QuickActionBtn = ({ icon, label, color, onPress, badge, colors, isDark }) => (
+  <TouchableOpacity style={qaS.wrap} onPress={onPress} activeOpacity={0.8}>
+    <View style={[
+      qaS.iconBox,
+      {
+        backgroundColor: isDark ? color + '18' : color + '14',
+        borderColor: isDark ? color + '25' : color + '20',
+        borderWidth: 1,
+      }
+    ]}>
+      <Ionicons name={icon} size={22} color={color} />
+      {badge ? (
+        <View style={[qaS.badge, { backgroundColor: colors.danger }]}>
+          <Text style={qaS.badgeTxt}>{badge > 9 ? '9+' : badge}</Text>
+        </View>
+      ) : null}
+    </View>
+    <Text style={[qaS.label, { color: colors.textMuted }]}>{label}</Text>
+  </TouchableOpacity>
+);
+
+const qaS = StyleSheet.create({
+  wrap: { alignItems: 'center', gap: 7, flex: 1 },
+  iconBox: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  badge: { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
+  label: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
+});
+
+const LowStockItem = ({ item, colors }) => (
+  <View style={[lsS.item, { borderBottomColor: colors.divider }]}>
+    <View style={lsS.left}>
+      <Text style={[lsS.name, { color: colors.textWhite }]} numberOfLines={1}>{item.name}</Text>
+      <Text style={[lsS.cat, { color: colors.textDark }]}>{item.category_name || 'Umum'}</Text>
+    </View>
+    <View style={[
+      lsS.badge,
+      { backgroundColor: item.stock === 0 ? colors.danger + '20' : colors.warning + '20' }
+    ]}>
+      <Text style={[
+        lsS.badgeText,
+        { color: item.stock === 0 ? colors.danger : colors.warning }
+      ]}>
+        {item.stock === 0 ? 'Habis' : `${item.stock}`}
+      </Text>
+    </View>
+  </View>
+);
+
+const lsS = StyleSheet.create({
+  item: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1 },
+  left: { flex: 1, gap: 2 },
+  name: { fontSize: FONTS.sm, fontWeight: '600' },
+  cat: { fontSize: 11 },
+  badge: { borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 3 },
+  badgeText: { fontSize: 11, fontWeight: '700' },
+});
 
 export default function DashboardScreen({ navigation }) {
-  const { user, isManager } = useAuth();
-  const [stats, setStats]       = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { user, isOwner } = useAuth();
+  const { colors, isDark } = useTheme();
 
-  /**
-   * Muat data dashboard dari API
-   */
+  const [stats, setStats]           = useState(null);
+  const [isLoading, setIsLoading]   = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [online, setOnline]         = useState(isOnline());
+  const [pendingCount, setPendingCount] = useState(0);
+  const [fromCache, setFromCache]   = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   const loadDashboard = async (refresh = false) => {
-    if (refresh) setIsRefreshing(true);
-    else setIsLoading(true);
+    if (refresh) setRefreshing(true);
+    else if (!stats) setIsLoading(true);
 
-    const result = await dashboardAPI.getStats();
-    if (result.success) {
-      setStats(result.data);
+    const isConn = isOnline();
+    setOnline(isConn);
+    const cnt = await pendingTransactions.count();
+    setPendingCount(cnt);
+
+    if (isConn) {
+      const result = await dashboardAPI.getStats();
+      if (result.success) {
+        setStats(result.data);
+        await offlineDashboard.save(result.data);
+        await syncInfo.update();
+        setFromCache(false);
+      } else {
+        const cached = await offlineDashboard.loadForce();
+        if (cached) { setStats(cached); setFromCache(true); }
+      }
+    } else {
+      const cached = await offlineDashboard.loadForce();
+      if (cached) { setStats(cached); setFromCache(true); }
     }
 
     setIsLoading(false);
-    setIsRefreshing(false);
+    setRefreshing(false);
+
+    // Fade in
+    Animated.timing(fadeAnim, {
+      toValue: 1, duration: 400, useNativeDriver: true,
+    }).start();
   };
 
-  // Reload saat screen difokus
   useFocusEffect(useCallback(() => { loadDashboard(); }, []));
 
-  const today    = stats?.today || {};
-  const month    = stats?.this_month?.profit_summary || {};
+  const today = stats?.today || {};
+  const month = stats?.this_month?.profit_summary || {};
   const lowStock = stats?.low_stock || [];
   const topProds = stats?.top_products || [];
 
-  if (isLoading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Memuat dashboard...</Text>
-      </View>
-    );
-  }
+  const s = getStyles(colors);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={() => loadDashboard(true)}
-          tintColor={COLORS.primary}
-          colors={[COLORS.primary]}
-        />
-      }
-    >
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>
-            Halo, {user?.name?.split(' ')[0] || 'Kasir'} 👋
-          </Text>
-          <Text style={styles.date}>
-            {new Date().toLocaleDateString('id-ID', {
-              weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-            })}
-          </Text>
-        </View>
-        <View style={styles.roleBadge}>
-          <Text style={styles.roleText}>{user?.role?.toUpperCase()}</Text>
-        </View>
-      </View>
+    <View style={[s.container, { backgroundColor: colors.bgDark }]}>
+      {!online && <OfflineBanner pendingCount={pendingCount} />}
 
-      {/* ── Statistik Hari Ini ── */}
-      <Text style={styles.sectionTitle}>📊 Hari Ini</Text>
-      <View style={styles.statsRow}>
-        <View style={[styles.statCard, { borderLeftColor: COLORS.primary }]}>
-          <Ionicons name="cash-outline" size={24} color={COLORS.primary} />
-          <Text style={styles.statValue}>{formatCurrency(today.revenue || 0)}</Text>
-          <Text style={styles.statLabel}>Omzet</Text>
-        </View>
-        <View style={[styles.statCard, { borderLeftColor: COLORS.success }]}>
-          <Ionicons name="receipt-outline" size={24} color={COLORS.success} />
-          <Text style={styles.statValue}>{today.transactions || 0}</Text>
-          <Text style={styles.statLabel}>Transaksi</Text>
-        </View>
-      </View>
-
-      {/* ── Statistik Bulan Ini (hanya manager/admin) ── */}
-      {isManager && (
-        <>
-          <Text style={styles.sectionTitle}>📅 Bulan Ini</Text>
-          <View style={styles.statsRow}>
-            <View style={[styles.statCard, { borderLeftColor: COLORS.info }]}>
-              <MaterialCommunityIcons name="trending-up" size={24} color={COLORS.info} />
-              <Text style={styles.statValue}>{formatCurrency(month.total_pendapatan || 0)}</Text>
-              <Text style={styles.statLabel}>Pendapatan</Text>
-            </View>
-            <View style={[styles.statCard, { borderLeftColor: COLORS.accent }]}>
-              <MaterialCommunityIcons name="chart-line" size={24} color={COLORS.accent} />
-              <Text style={styles.statValue}>{formatCurrency(month.laba_kotor || 0)}</Text>
-              <Text style={styles.statLabel}>Laba</Text>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadDashboard(true)}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        {/* Header */}
+        <LinearGradient
+          colors={isDark ? ['#12121F', '#1A1A2E'] : ['#FFFFFF', '#F8F8FF']}
+          style={s.header}
+        >
+          <View>
+            <Text style={[s.greeting, { color: colors.textWhite }]}>
+              Halo, {user?.name?.split(' ')[0] || 'Kasir'} 👋
+            </Text>
+            <Text style={[s.date, { color: colors.textMuted }]}>
+              {new Date().toLocaleDateString('id-ID', {
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+              })}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {fromCache && (
+              <View style={[s.cacheBadge, { backgroundColor: colors.warning + '20', borderColor: colors.warning + '40' }]}>
+                <Ionicons name="cloud-offline-outline" size={11} color={colors.warning} />
+                <Text style={[s.cacheTxt, { color: colors.warning }]}>Cache</Text>
+              </View>
+            )}
+            <View style={[s.roleBadge, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}>
+              <Text style={[s.roleTxt, { color: colors.primary }]}>{user?.role?.toUpperCase()}</Text>
             </View>
           </View>
-        </>
-      )}
+        </LinearGradient>
 
-      {/* ── Quick Actions ── */}
-      <Text style={styles.sectionTitle}>⚡ Aksi Cepat</Text>
-      <View style={styles.quickActions}>
-        <TouchableOpacity
-          style={styles.quickAction}
-          onPress={() => navigation.navigate('POS')}
-        >
-          <View style={[styles.quickActionIcon, { backgroundColor: COLORS.primary + '20' }]}>
-            <MaterialCommunityIcons name="point-of-sale" size={24} color={COLORS.primary} />
-          </View>
-          <Text style={styles.quickActionLabel}>Kasir</Text>
-        </TouchableOpacity>
+        <Animated.View style={{ opacity: fadeAnim }}>
 
-        <TouchableOpacity
-          style={styles.quickAction}
-          onPress={() => navigation.navigate('Transactions')}
-        >
-          <View style={[styles.quickActionIcon, { backgroundColor: COLORS.success + '20' }]}>
-            <MaterialCommunityIcons name="invoice-text-outline" size={24} color={COLORS.success} />
-          </View>
-          <Text style={styles.quickActionLabel}>Transaksi</Text>
-        </TouchableOpacity>
-
-        {isManager && (
-          <>
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => navigation.navigate('Reports')}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: COLORS.info + '20' }]}>
-                <Ionicons name="bar-chart-outline" size={24} color={COLORS.info} />
+          {/* Today Stats */}
+          <View style={s.section}>
+            <SectionTitle title="📊 Hari Ini" />
+            {isLoading ? (
+              <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+                <Skeleton height={100} style={{ flex: 1, borderRadius: RADIUS.lg }} />
+                <Skeleton height={100} style={{ flex: 1, borderRadius: RADIUS.lg }} />
               </View>
-              <Text style={styles.quickActionLabel}>Laporan</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickAction}
-              onPress={() => navigation.navigate('Analytics')}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: '#9C27B0' + '20' }]}>
-                <Ionicons name="analytics-outline" size={24} color="#9C27B0" />
+            ) : (
+              <View style={s.statsRow}>
+                <StatCard
+                  label="Omzet"
+                  value={formatCurrency(today.revenue || 0)}
+                  sub={`${today.transactions || 0} transaksi`}
+                  icon="trending-up-outline"
+                  color={colors.primary}
+                />
+                <StatCard
+                  label="Transaksi"
+                  value={String(today.transactions || 0)}
+                  sub="hari ini"
+                  icon="receipt-outline"
+                  color={colors.success}
+                />
               </View>
-              <Text style={styles.quickActionLabel}>Analytics</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-
-      {/* ── Stok Rendah ── */}
-      {lowStock.length > 0 && (
-        <>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>⚠️ Stok Rendah</Text>
-            <Text style={styles.sectionBadge}>{lowStock.length}</Text>
-          </View>
-          <View style={styles.card}>
-            {lowStock.slice(0, 5).map((item, idx) => (
-              <View key={item.id || idx} style={styles.listItem}>
-                <View style={styles.listItemLeft}>
-                  <Text style={styles.listItemName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.listItemSub}>{item.category_name || 'Umum'}</Text>
-                </View>
-                <View style={[
-                  styles.stockBadge,
-                  { backgroundColor: item.stock === 0 ? COLORS.danger : COLORS.warning },
-                ]}>
-                  <Text style={styles.stockBadgeText}>
-                    {item.stock === 0 ? 'Habis' : `${item.stock} ${item.unit || 'pcs'}`}
-                  </Text>
-                </View>
-              </View>
-            ))}
-            {lowStock.length > 5 && (
-              <Text style={styles.moreText}>+{lowStock.length - 5} produk lainnya</Text>
             )}
           </View>
-        </>
-      )}
 
-      {/* ── Produk Terlaris ── */}
-      {topProds.length > 0 && (
-        <>
-          <Text style={styles.sectionTitle}>🏆 Produk Terlaris</Text>
-          <View style={styles.card}>
-            {topProds.map((item, idx) => (
-              <View key={item.id || idx} style={styles.listItem}>
-                <View style={styles.rankBadge}>
-                  <Text style={styles.rankText}>{idx + 1}</Text>
+          {/* Monthly Stats — owner only */}
+          {isOwner && (
+            <View style={s.section}>
+              <SectionTitle
+                title="📅 Bulan Ini"
+                action={() => navigation.navigate('Reports')}
+              />
+              {isLoading ? (
+                <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+                  <Skeleton height={100} style={{ flex: 1, borderRadius: RADIUS.lg }} />
+                  <Skeleton height={100} style={{ flex: 1, borderRadius: RADIUS.lg }} />
                 </View>
-                <View style={styles.listItemLeft}>
-                  <Text style={styles.listItemName} numberOfLines={1}>{item.name}</Text>
-                  <Text style={styles.listItemSub}>Terjual: {item.total_qty} item</Text>
+              ) : (
+                <View style={s.statsRow}>
+                  <StatCard
+                    label="Pendapatan"
+                    value={formatCurrency(month.total_pendapatan || 0)}
+                    icon="cash-outline"
+                    color={colors.info}
+                  />
+                  <StatCard
+                    label="Laba"
+                    value={formatCurrency(month.laba_kotor || 0)}
+                    icon="trending-up-outline"
+                    color={colors.warning}
+                  />
                 </View>
-                <Text style={styles.revenueText}>{formatCurrency(item.total_revenue || 0)}</Text>
+              )}
+            </View>
+          )}
+
+          {/* Quick Actions */}
+          <View style={s.section}>
+            <SectionTitle title="⚡ Aksi Cepat" />
+            <View style={[s.qaCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              <View style={s.qaRow}>
+                <QuickActionBtn icon="point-of-sale" label="Kasir" color={colors.primary} onPress={() => navigation.navigate('POS')} colors={colors} isDark={isDark} />
+                <QuickActionBtn icon="receipt-outline" label="Transaksi" color={colors.success} onPress={() => navigation.navigate('Transactions')} colors={colors} isDark={isDark} />
+                <QuickActionBtn icon="cube-outline" label="Produk" color={colors.info} onPress={() => navigation.navigate('Products')} colors={colors} isDark={isDark} />
+                {isOwner && <QuickActionBtn icon="bar-chart-outline" label="Laporan" color="#9C27B0" onPress={() => navigation.navigate('Reports')} colors={colors} isDark={isDark} />}
               </View>
-            ))}
+              {isOwner && (
+                <View style={[s.qaRow, { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: SPACING.md }]}>
+                  <QuickActionBtn icon="analytics-outline" label="Analytics" color={colors.warning} onPress={() => navigation.navigate('Analytics')} colors={colors} isDark={isDark} />
+                  <QuickActionBtn icon="people-outline" label="Karyawan" color="#E91E63" onPress={() => navigation.navigate('Users')} colors={colors} isDark={isDark} />
+                  <QuickActionBtn icon="archive-outline" label="Stok Masuk" color={colors.success} onPress={() => navigation.navigate('StockIn')} colors={colors} isDark={isDark} />
+                  <QuickActionBtn icon="pricetag-outline" label="Promo" color="#FF6584" onPress={() => navigation.navigate('Promos')} colors={colors} isDark={isDark} />
+                </View>
+              )}
+            </View>
           </View>
-        </>
-      )}
 
-      {/* Jika tidak ada data */}
-      {!stats && (
-        <View style={styles.noData}>
-          <Ionicons name="cloud-offline-outline" size={48} color={COLORS.textDark} />
-          <Text style={styles.noDataTitle}>Tidak ada data</Text>
-          <Text style={styles.noDataText}>Pastikan server XAMPP aktif</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => loadDashboard()}
-          >
-            <Text style={styles.retryText}>Coba Lagi</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+          {/* Low Stock Warning */}
+          {lowStock.length > 0 && (
+            <View style={s.section}>
+              <SectionTitle
+                title={`⚠️ Stok Rendah (${lowStock.length})`}
+                action={() => navigation.navigate('Products')}
+              />
+              <View style={[s.listCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+                {lowStock.slice(0, 5).map((item, idx) => (
+                  <LowStockItem key={item.id || idx} item={item} colors={colors} />
+                ))}
+              </View>
+            </View>
+          )}
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+          {/* Top Products */}
+          {topProds.length > 0 && (
+            <View style={s.section}>
+              <SectionTitle title="🏆 Produk Terlaris" action={() => navigation.navigate('Analytics')} />
+              <View style={[s.listCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+                {topProds.slice(0, 5).map((item, idx) => (
+                  <View key={item.id || idx} style={[s.topItem, { borderBottomColor: colors.divider }]}>
+                    <View style={[s.rankBadge, {
+                      backgroundColor: idx < 3
+                        ? ['#FFD700', '#C0C0C0', '#CD7F32'][idx] + '25'
+                        : colors.bgSurface,
+                    }]}>
+                      <Text style={[s.rankTxt, {
+                        color: idx < 3
+                          ? ['#FFD700', '#C0C0C0', '#CD7F32'][idx]
+                          : colors.textDark,
+                      }]}>{idx + 1}</Text>
+                    </View>
+                    <View style={{ flex: 1, gap: 2 }}>
+                      <Text style={[s.topName, { color: colors.textWhite }]} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={[s.topSub, { color: colors.textDark }]}>
+                        Terjual: {item.total_qty} unit
+                      </Text>
+                    </View>
+                    <Text style={[s.topRev, { color: colors.success }]}>
+                      {formatCurrency(item.total_revenue || 0)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Empty state */}
+          {!isLoading && !stats && (
+            <View style={s.section}>
+              <EmptyState
+                icon="cloud-offline-outline"
+                title="Tidak ada data"
+                subtitle="Pastikan server aktif dan koneksi internet tersedia"
+                actionLabel="Coba Lagi"
+                onAction={() => loadDashboard(true)}
+              />
+            </View>
+          )}
+
+        </Animated.View>
+      </ScrollView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgDark },
-  content: { paddingBottom: 20 },
-  loadingContainer: {
-    flex: 1,
-    backgroundColor: COLORS.bgDark,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.md,
-  },
-  loadingText: { color: COLORS.textMuted, fontSize: FONTS.md },
-
-  // Header
+const getStyles = (colors) => StyleSheet.create({
+  container: { flex: 1 },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: SPACING.xl,
-    paddingBottom: SPACING.lg,
-    backgroundColor: COLORS.bgMedium,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
+    paddingTop: 50, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xl,
   },
-  greeting: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  date: { fontSize: FONTS.sm, color: COLORS.textMuted, marginTop: 4 },
+  greeting: { fontSize: FONTS.xl, fontWeight: '800', letterSpacing: -0.5 },
+  date: { fontSize: FONTS.sm, marginTop: 3 },
   roleBadge: {
-    backgroundColor: COLORS.primary + '22',
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-    borderWidth: 1,
-    borderColor: COLORS.primary + '55',
+    paddingHorizontal: SPACING.sm, paddingVertical: 4,
+    borderRadius: RADIUS.full, borderWidth: 1,
   },
-  roleText: { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.bold },
+  roleTxt: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  cacheBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    paddingHorizontal: SPACING.sm, paddingVertical: 3,
+    borderRadius: RADIUS.full, borderWidth: 1,
+  },
+  cacheTxt: { fontSize: 10, fontWeight: '600' },
 
-  // Section
-  sectionTitle: {
-    fontSize: FONTS.md,
-    fontWeight: FONTS.bold,
-    color: COLORS.textLight,
-    marginTop: SPACING.xl,
-    marginHorizontal: SPACING.xl,
-    marginBottom: SPACING.sm,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: SPACING.xl,
-    marginHorizontal: SPACING.xl,
-    marginBottom: SPACING.sm,
-    gap: SPACING.sm,
-  },
-  sectionBadge: {
-    backgroundColor: COLORS.warning,
-    color: '#fff',
-    fontSize: FONTS.xs,
-    fontWeight: FONTS.bold,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: RADIUS.full,
-    marginTop: 2,
-  },
+  section: { paddingHorizontal: SPACING.lg, marginTop: SPACING.xl },
+  statsRow: { flexDirection: 'row', gap: SPACING.sm },
 
-  // Stat Cards
-  statsRow: {
-    flexDirection: 'row',
-    gap: SPACING.md,
-    marginHorizontal: SPACING.xl,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderLeftWidth: 4,
-    gap: 6,
-    ...SHADOW.sm,
-  },
-  statValue: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  statLabel: { fontSize: FONTS.xs, color: COLORS.textMuted },
+  qaCard: { borderRadius: RADIUS.xl, borderWidth: 1, padding: SPACING.lg, gap: SPACING.md },
+  qaRow: { flexDirection: 'row', gap: SPACING.md },
 
-  // Quick Actions
-  quickActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: SPACING.md,
-    marginHorizontal: SPACING.xl,
-  },
-  quickAction: {
-    alignItems: 'center',
-    gap: SPACING.sm,
-    width: '21%',
-  },
-  quickActionIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  quickActionLabel: {
-    fontSize: FONTS.xs,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    fontWeight: FONTS.medium,
-  },
+  listCard: { borderRadius: RADIUS.xl, borderWidth: 1, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
 
-  // Card
-  card: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    marginHorizontal: SPACING.xl,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    overflow: 'hidden',
-    ...SHADOW.sm,
+  topItem: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
+    paddingVertical: 11, borderBottomWidth: 1,
   },
-
-  // List Item
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: SPACING.md,
-    paddingHorizontal: SPACING.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
-    gap: SPACING.md,
-  },
-  listItemLeft: { flex: 1 },
-  listItemName: { fontSize: FONTS.sm, color: COLORS.textWhite, fontWeight: FONTS.medium },
-  listItemSub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-
-  stockBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: RADIUS.full,
-  },
-  stockBadgeText: { fontSize: FONTS.xs, color: '#fff', fontWeight: FONTS.bold },
-
-  rankBadge: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.primary + '22',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rankText: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },
-
-  revenueText: { fontSize: FONTS.sm, color: COLORS.success, fontWeight: FONTS.semibold },
-
-  moreText: {
-    fontSize: FONTS.xs,
-    color: COLORS.textDark,
-    textAlign: 'center',
-    padding: SPACING.md,
-  },
-
-  // No data
-  noData: {
-    alignItems: 'center',
-    padding: SPACING.xxl,
-    gap: SPACING.md,
-    marginTop: SPACING.xxl,
-  },
-  noDataTitle: { fontSize: FONTS.lg, color: COLORS.textMuted, fontWeight: FONTS.semibold },
-  noDataText: { fontSize: FONTS.md, color: COLORS.textDark, textAlign: 'center' },
-  retryButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
-    marginTop: SPACING.sm,
-  },
-  retryText: { color: '#fff', fontSize: FONTS.md, fontWeight: FONTS.bold },
+  rankBadge: { width: 30, height: 30, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
+  rankTxt: { fontSize: FONTS.sm, fontWeight: '800' },
+  topName: { fontSize: FONTS.sm, fontWeight: '600' },
+  topSub: { fontSize: 11 },
+  topRev: { fontSize: FONTS.sm, fontWeight: '700' },
 });

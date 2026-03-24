@@ -1,20 +1,26 @@
 /**
- * src/screens/LoginScreen.js — Halaman Login
+ * src/screens/LoginScreen.js — v2 dengan theme awareness
  */
 
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   KeyboardAvoidingView, ScrollView, Platform, ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { SERVER_URL_KEY, DEFAULT_URL } from './ServerSettingsScreen';
-import { COLORS, FONTS, SPACING, RADIUS } from '../utils/theme';
+import { FONTS, SPACING, RADIUS } from '../utils/theme';
 
 export default function LoginScreen({ navigation }) {
+  const { login } = useAuth();
+  const { isDark, colors, toggleTheme } = useTheme();
+
   const [username,     setUsername]     = useState('');
   const [password,     setPassword]     = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,16 +28,21 @@ export default function LoginScreen({ navigation }) {
   const [error,        setError]        = useState('');
   const [serverUrl,    setServerUrl]    = useState('');
 
-  const { login } = useAuth();
+  const fadeAnim  = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    const load = () => {
-      AsyncStorage.getItem(SERVER_URL_KEY).then((saved) => {
-        setServerUrl(saved || DEFAULT_URL);
-      });
-    };
-    load();
-    const unsub = navigation.addListener('focus', load);
+    AsyncStorage.getItem(SERVER_URL_KEY).then(saved => setServerUrl(saved || DEFAULT_URL));
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+  useEffect(() => {
+    const unsub = navigation.addListener('focus', () => {
+      AsyncStorage.getItem(SERVER_URL_KEY).then(saved => setServerUrl(saved || DEFAULT_URL));
+    });
     return unsub;
   }, [navigation]);
 
@@ -48,60 +59,73 @@ export default function LoginScreen({ navigation }) {
     setIsLoading(true);
     try {
       const result = await login(username.trim(), password);
-      if (!result.success) {
-        setError(result.error || 'Login gagal. Periksa email dan password Anda.');
-      }
+      if (!result.success) setError(result.error || 'Login gagal. Periksa email dan password Anda.');
     } catch {
-      setError('Tidak dapat terhubung ke server. Pastikan koneksi internet aktif.');
+      setError('Tidak dapat terhubung ke server.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Tampilkan host saja tanpa path
-  const shortUrl = (serverUrl || DEFAULT_URL)
-    .replace(/^https?:\/\//, '')
-    .split('/')[0];
+  const shortUrl = (serverUrl || DEFAULT_URL).replace(/^https?:\/\//, '').split('/')[0];
+
+  const gradColors = isDark
+    ? ['#080812', '#0F0F1E', '#14142A']
+    : ['#F5F5FC', '#EEEEF8', '#E8E8F5'];
+
+  const s = getStyles(colors, isDark);
 
   return (
-    <LinearGradient colors={['#0F0F1A', '#1A1A2E']} style={styles.container}>
+    <LinearGradient colors={gradColors} style={s.container}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
+        style={s.flex}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={s.scrollContent}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── Logo & Judul ── */}
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <Ionicons name="storefront" size={48} color={COLORS.primary} />
-            </View>
-            <Text style={styles.appName}>KasirPOS</Text>
-            <Text style={styles.subtitle}>Masuk ke akun Anda</Text>
+          {/* Theme toggle */}
+          <View style={s.topRow}>
+            <TouchableOpacity onPress={toggleTheme} style={[s.themeBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={18} color={colors.textMuted} />
+            </TouchableOpacity>
           </View>
 
-          {/* ── Form ── */}
-          <View style={styles.form}>
+          {/* Logo */}
+          <Animated.View style={[s.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+            <LinearGradient
+              colors={['#6C63FF', '#8B85FF']}
+              style={s.logoContainer}
+            >
+              <MaterialCommunityIcons name="point-of-sale" size={42} color="#fff" />
+            </LinearGradient>
+            <Text style={[s.appName, { color: colors.textWhite }]}>KasirPOS</Text>
+            <Text style={[s.subtitle, { color: colors.textMuted }]}>Masuk ke akun Anda</Text>
+            <Text style={[s.brandBy, { color: colors.primary + '80' }]}>by AprilTech</Text>
+          </Animated.View>
+
+          {/* Form */}
+          <Animated.View style={[s.form, { opacity: fadeAnim }]}>
             {error ? (
-              <View style={styles.errorBox}>
-                <Ionicons name="warning-outline" size={16} color={COLORS.danger} />
-                <Text style={styles.errorText}>{error}</Text>
+              <View style={[s.errorBox, { backgroundColor: colors.danger + '15', borderColor: colors.danger + '40' }]}>
+                <Ionicons name="warning-outline" size={16} color={colors.danger} />
+                <Text style={[s.errorText, { color: colors.danger }]}>{error}</Text>
               </View>
             ) : null}
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email atau Username</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
+            {/* Username */}
+            <View style={s.inputGroup}>
+              <Text style={[s.label, { color: colors.textLight }]}>Email atau Username</Text>
+              <View style={[s.inputWrapper, { backgroundColor: colors.bgInput, borderColor: colors.border }]}>
+                <Ionicons name="person-outline" size={18} color={colors.textMuted} style={s.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[s.input, { color: colors.textWhite }]}
                   placeholder="Masukkan email atau username"
-                  placeholderTextColor={COLORS.textDark}
+                  placeholderTextColor={colors.textDark}
                   value={username}
-                  onChangeText={(t) => { setUsername(t); setError(''); }}
+                  onChangeText={t => { setUsername(t); setError(''); }}
                   autoCapitalize="none"
                   autoCorrect={false}
                   keyboardType="email-address"
@@ -110,83 +134,93 @@ export default function LoginScreen({ navigation }) {
               </View>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
+            {/* Password */}
+            <View style={s.inputGroup}>
+              <Text style={[s.label, { color: colors.textLight }]}>Password</Text>
+              <View style={[s.inputWrapper, { backgroundColor: colors.bgInput, borderColor: colors.border }]}>
+                <Ionicons name="lock-closed-outline" size={18} color={colors.textMuted} style={s.inputIcon} />
                 <TextInput
-                  style={styles.input}
+                  style={[s.input, { color: colors.textWhite }]}
                   placeholder="Masukkan password"
-                  placeholderTextColor={COLORS.textDark}
+                  placeholderTextColor={colors.textDark}
                   value={password}
-                  onChangeText={(t) => { setPassword(t); setError(''); }}
+                  onChangeText={t => { setPassword(t); setError(''); }}
                   secureTextEntry={!showPassword}
                   autoCapitalize="none"
                   returnKeyType="done"
                   onSubmitEditing={handleLogin}
                 />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={s.eyeBtn}>
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                    size={18} color={COLORS.textMuted}
+                    size={18} color={colors.textMuted}
                   />
                 </TouchableOpacity>
               </View>
             </View>
 
-            {/* Tombol Login */}
+            {/* Login Button */}
             <TouchableOpacity
-              style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+              style={[s.loginButton, isLoading && { opacity: 0.7 }]}
               onPress={handleLogin}
               disabled={isLoading}
               activeOpacity={0.85}
             >
-              {isLoading ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <>
-                  <Ionicons name="log-in-outline" size={20} color="#fff" />
-                  <Text style={styles.loginButtonText}>Masuk</Text>
-                </>
-              )}
+              <LinearGradient
+                colors={['#6C63FF', '#8B85FF']}
+                start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                style={s.loginGradient}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="log-in-outline" size={20} color="#fff" />
+                    <Text style={s.loginButtonText}>Masuk</Text>
+                  </>
+                )}
+              </LinearGradient>
             </TouchableOpacity>
 
             {/* Divider */}
-            <View style={styles.dividerRow}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>atau</Text>
-              <View style={styles.dividerLine} />
+            <View style={s.dividerRow}>
+              <View style={[s.dividerLine, { backgroundColor: colors.border }]} />
+              <Text style={[s.dividerText, { color: colors.textDark }]}>atau</Text>
+              <View style={[s.dividerLine, { backgroundColor: colors.border }]} />
             </View>
 
-            {/* Tombol Daftar Sebagai Owner */}
+            {/* Register */}
             <TouchableOpacity
-              style={styles.registerBtn}
+              style={[s.registerBtn, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}
               onPress={() => navigation.navigate('Register')}
               activeOpacity={0.8}
             >
-              <Ionicons name="person-add-outline" size={18} color={COLORS.primary} />
-              <View style={styles.registerBtnContent}>
-                <Text style={styles.registerBtnTitle}>Daftar Sebagai Owner</Text>
-                <Text style={styles.registerBtnSub}>Buat bisnis baru & kelola karyawan</Text>
+              <View style={[s.registerIcon, { backgroundColor: colors.primary + '20' }]}>
+                <Ionicons name="person-add-outline" size={17} color={colors.primary} />
               </View>
-              <Ionicons name="chevron-forward" size={15} color={COLORS.primary} />
+              <View style={s.registerBtnContent}>
+                <Text style={[s.registerBtnTitle, { color: colors.primary }]}>Daftar Sebagai Owner</Text>
+                <Text style={[s.registerBtnSub, { color: colors.textDark }]}>Buat bisnis baru & kelola karyawan</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={15} color={colors.primary} />
             </TouchableOpacity>
-          </View>
+          </Animated.View>
 
-          {/* ── Info Server ── */}
+          {/* Server info */}
           <TouchableOpacity
-            style={styles.serverBtn}
+            style={[s.serverBtn, { backgroundColor: colors.bgCard, borderColor: colors.border }]}
             onPress={() => navigation.navigate('ServerSettings')}
             activeOpacity={0.7}
           >
-            <View style={styles.serverLeft}>
-              <Ionicons name="server-outline" size={13} color={COLORS.textDark} />
-              <Text style={styles.serverLabel}>Server:</Text>
-              <Text style={styles.serverUrl} numberOfLines={1}>{shortUrl}</Text>
+            <View style={s.serverLeft}>
+              <View style={[s.serverDot, { backgroundColor: colors.success }]} />
+              <Ionicons name="server-outline" size={13} color={colors.textDark} />
+              <Text style={[s.serverLabel, { color: colors.textDark }]}>Server:</Text>
+              <Text style={[s.serverUrl, { color: colors.textMuted }]} numberOfLines={1}>{shortUrl}</Text>
             </View>
-            <View style={styles.serverRight}>
-              <Text style={styles.serverEdit}>Ganti</Text>
-              <Ionicons name="chevron-forward" size={13} color={COLORS.primary} />
+            <View style={s.serverRight}>
+              <Text style={[s.serverEdit, { color: colors.primary }]}>Ganti</Text>
+              <Ionicons name="chevron-forward" size={13} color={colors.primary} />
             </View>
           </TouchableOpacity>
 
@@ -196,76 +230,77 @@ export default function LoginScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container:    { flex: 1 },
-  flex:         { flex: 1 },
+const getStyles = (colors, isDark) => StyleSheet.create({
+  container: { flex: 1 },
+  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1, justifyContent: 'center',
-    padding: SPACING.xl, paddingTop: 60, paddingBottom: 32,
+    padding: SPACING.xl, paddingTop: 50, paddingBottom: 32,
+  },
+  topRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: SPACING.lg },
+  themeBtn: {
+    width: 40, height: 40, borderRadius: RADIUS.md,
+    alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
 
-  header:        { alignItems: 'center', marginBottom: SPACING.xxl, gap: SPACING.sm },
+  header: { alignItems: 'center', marginBottom: SPACING.xxl, gap: SPACING.sm },
   logoContainer: {
-    width: 96, height: 96, borderRadius: 24,
-    backgroundColor: COLORS.primary + '22',
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: 8, borderWidth: 2, borderColor: COLORS.primary + '44',
+    width: 90, height: 90, borderRadius: 28,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
-  appName:  { fontSize: FONTS.xxl, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  subtitle: { fontSize: FONTS.md, color: COLORS.textMuted },
+  appName: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
+  subtitle: { fontSize: FONTS.md },
+  brandBy: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
 
-  form:         { gap: SPACING.md, marginBottom: SPACING.xl },
-  errorBox:     {
+  form: { gap: SPACING.md, marginBottom: SPACING.xl },
+  errorBox: {
     flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,
-    backgroundColor: COLORS.danger + '18', borderRadius: RADIUS.md,
-    padding: SPACING.md, borderWidth: 1, borderColor: COLORS.danger + '44',
+    borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1,
   },
-  errorText:    { flex: 1, fontSize: FONTS.sm, color: COLORS.danger, lineHeight: 18 },
-  inputGroup:   { gap: 6 },
-  label:        { fontSize: FONTS.sm, color: COLORS.textLight, fontWeight: FONTS.medium, marginLeft: 4 },
+  errorText: { flex: 1, fontSize: FONTS.sm, lineHeight: 18 },
+
+  inputGroup: { gap: 7 },
+  label: { fontSize: FONTS.sm, fontWeight: '600', marginLeft: 2 },
   inputWrapper: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md,
-    borderWidth: 1, borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md, height: 52,
+    borderRadius: RADIUS.md, borderWidth: 1,
+    paddingHorizontal: SPACING.md, height: 54,
   },
   inputIcon: { marginRight: SPACING.sm },
-  input:     { flex: 1, color: COLORS.textWhite, fontSize: FONTS.md },
-  eyeBtn:    { padding: 4 },
+  input: { flex: 1, fontSize: FONTS.md },
+  eyeBtn: { padding: 4 },
 
-  loginButton: {
+  loginButton: { borderRadius: RADIUS.md, overflow: 'hidden', marginTop: SPACING.sm },
+  loginGradient: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: SPACING.sm, backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.md, height: 52, marginTop: SPACING.sm,
-    elevation: 4, shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.4, shadowRadius: 8,
+    gap: SPACING.sm, height: 54,
   },
-  loginButtonDisabled: { opacity: 0.7 },
-  loginButtonText:     { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: '#fff' },
+  loginButtonText: { fontSize: FONTS.lg, fontWeight: '800', color: '#fff' },
 
-  dividerRow:  { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  dividerLine: { flex: 1, height: 1, backgroundColor: COLORS.border },
-  dividerText: { fontSize: FONTS.xs, color: COLORS.textDark },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: FONTS.xs },
 
   registerBtn: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    backgroundColor: COLORS.primary + '12',
-    borderRadius: RADIUS.md, padding: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.primary + '3A',
+    borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1,
+  },
+  registerIcon: {
+    width: 38, height: 38, borderRadius: RADIUS.sm,
+    alignItems: 'center', justifyContent: 'center',
   },
   registerBtnContent: { flex: 1 },
-  registerBtnTitle:   { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },
-  registerBtnSub:     { fontSize: FONTS.xs, color: COLORS.textDark, marginTop: 2 },
+  registerBtnTitle: { fontSize: FONTS.sm, fontWeight: '700' },
+  registerBtnSub: { fontSize: FONTS.xs, marginTop: 1 },
 
-  serverBtn:   {
+  serverBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md, padding: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1,
   },
-  serverLeft:  { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  serverLabel: { fontSize: FONTS.xs, color: COLORS.textDark },
-  serverUrl:   { fontSize: FONTS.xs, color: COLORS.textMuted, flex: 1 },
+  serverLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  serverDot: { width: 6, height: 6, borderRadius: 3 },
+  serverLabel: { fontSize: FONTS.xs },
+  serverUrl: { fontSize: FONTS.xs, flex: 1 },
   serverRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  serverEdit:  { fontSize: FONTS.xs, color: COLORS.primary, fontWeight: FONTS.bold },
+  serverEdit: { fontSize: FONTS.xs, fontWeight: '700' },
 });
