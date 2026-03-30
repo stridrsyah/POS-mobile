@@ -1,6 +1,6 @@
 /**
  * src/screens/SplashScreen.js — Layar Pembuka AprilTech POS
- * Watermark: AprilTech dengan animasi profesional
+ * Ikon: Toko berwarna ungu (konsisten dengan assets/icon.png)
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -19,6 +19,10 @@ const TYPING_SPEED  = 80;
 const AFTER_TYPING  = 2000;
 const TOTAL_TYPING  = BRAND_TEXT.length * TYPING_SPEED;
 
+// Warna ungu brand — konsisten dengan icon.png
+const BRAND_PURPLE  = '#6C63FF';
+const BRAND_PURPLE2 = '#8B85FF';
+
 export default function SplashScreen() {
   const fadeMain   = useRef(new Animated.Value(0)).current;
   const scaleIcon  = useRef(new Animated.Value(0.6)).current;
@@ -32,14 +36,11 @@ export default function SplashScreen() {
   const [cursorVisible, setCursorVisible] = useState(true);
 
   useEffect(() => {
-    // Cursor blink
     const cursorInterval = setInterval(() => {
       setCursorVisible(v => !v);
     }, 500);
 
-    // Sequence animasi masuk
     Animated.sequence([
-      // 1. Fade in
       Animated.parallel([
         Animated.timing(fadeMain, {
           toValue: 1, duration: 600, useNativeDriver: true,
@@ -48,7 +49,6 @@ export default function SplashScreen() {
           toValue: 1, friction: 5, tension: 60, useNativeDriver: true,
         }),
       ]),
-      // 2. Title slide up
       Animated.parallel([
         Animated.timing(fadeTitle, {
           toValue: 1, duration: 400, useNativeDriver: true,
@@ -60,7 +60,6 @@ export default function SplashScreen() {
       ]),
     ]).start();
 
-    // Glow pulse
     Animated.loop(
       Animated.sequence([
         Animated.timing(glowAnim, { toValue: 1, duration: 1500, useNativeDriver: false }),
@@ -68,7 +67,6 @@ export default function SplashScreen() {
       ])
     ).start();
 
-    // Progress bar
     Animated.sequence([
       Animated.timing(progressAnim, {
         toValue: 0.65, duration: TYPING_DELAY + 400, useNativeDriver: false,
@@ -81,7 +79,6 @@ export default function SplashScreen() {
       }),
     ]).start();
 
-    // Typing effect untuk "AprilTech"
     const typingTimer = setTimeout(() => {
       setShowCursor(true);
       let i = 0;
@@ -123,13 +120,14 @@ export default function SplashScreen() {
       {/* Main content */}
       <Animated.View style={[styles.content, { opacity: fadeMain }]}>
 
-        {/* Icon */}
+        {/* ── IKON TOKO UNGU — konsisten dengan icon.png ── */}
         <Animated.View style={[styles.iconWrap, { transform: [{ scale: scaleIcon }] }]}>
           <LinearGradient
-            colors={['#6C63FF', '#8B85FF']}
+            colors={[BRAND_PURPLE, BRAND_PURPLE2]}
             style={styles.iconGradient}
           >
-            <MaterialCommunityIcons name="point-of-sale" size={48} color="#fff" />
+            {/* Storefront icon — konsisten dengan tampilan toko di icon.png */}
+            <Ionicons name="storefront" size={52} color="#fff" />
           </LinearGradient>
           <Animated.View style={[styles.iconGlow, { opacity: glowOpacity }]} />
         </Animated.View>
@@ -170,7 +168,7 @@ export default function SplashScreen() {
         <View style={styles.progressTrack}>
           <Animated.View style={[styles.progressFill, { width: progressWidth }]}>
             <LinearGradient
-              colors={['#6C63FF', '#8B85FF']}
+              colors={[BRAND_PURPLE, BRAND_PURPLE2]}
               start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFill}
             />
@@ -184,29 +182,34 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
-  // Background orbs
   orb1: {
     position: 'absolute', top: height * 0.1, left: -80,
     width: 300, height: 300, borderRadius: 150,
-    backgroundColor: '#6C63FF', opacity: 0.08,
+    backgroundColor: BRAND_PURPLE, opacity: 0.08,
   },
   orb2: {
     position: 'absolute', bottom: height * 0.15, right: -100,
     width: 250, height: 250, borderRadius: 125,
-    backgroundColor: '#8B85FF', opacity: 0.06,
+    backgroundColor: BRAND_PURPLE2, opacity: 0.06,
   },
 
   content: { alignItems: 'center', gap: 20, paddingHorizontal: 40 },
 
-  // Icon
+  // Icon — toko ungu besar
   iconWrap: { position: 'relative', marginBottom: 8 },
   iconGradient: {
-    width: 110, height: 110, borderRadius: 32,
+    width: 120, height: 120, borderRadius: 36,
     alignItems: 'center', justifyContent: 'center',
+    // Shadow effect
+    elevation: 16,
+    shadowColor: BRAND_PURPLE,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 16,
   },
   iconGlow: {
     position: 'absolute', top: -15, left: -15, right: -15, bottom: -15,
-    borderRadius: 50, backgroundColor: '#6C63FF',
+    borderRadius: 50, backgroundColor: BRAND_PURPLE,
     zIndex: -1,
   },
 
@@ -218,15 +221,15 @@ const styles = StyleSheet.create({
   },
   appTagline: { fontSize: 14, color: '#6B6B8A', fontWeight: '500' },
   versionBadge: {
-    backgroundColor: '#6C63FF22', borderRadius: 20,
+    backgroundColor: BRAND_PURPLE + '22', borderRadius: 20,
     paddingHorizontal: 12, paddingVertical: 3,
-    borderWidth: 1, borderColor: '#6C63FF44', marginTop: 4,
+    borderWidth: 1, borderColor: BRAND_PURPLE + '44', marginTop: 4,
   },
-  versionText: { color: '#8B85FF', fontSize: 11, fontWeight: '700' },
+  versionText: { color: BRAND_PURPLE2, fontSize: 11, fontWeight: '700' },
 
   // Watermark
   watermarkSection: { alignItems: 'center', gap: 10, marginTop: 16, width: '100%' },
-  watermarkLine: { height: 1, width: '60%', backgroundColor: '#6C63FF33' },
+  watermarkLine: { height: 1, width: '60%', backgroundColor: BRAND_PURPLE + '33' },
   watermarkContent: { alignItems: 'center', gap: 4 },
   developedBy: {
     fontSize: 11, color: '#4A4A6A', fontWeight: '500',
@@ -237,11 +240,11 @@ const styles = StyleSheet.create({
     minHeight: 32,
   },
   brandLetters: {
-    fontSize: 22, fontWeight: '900', color: '#6C63FF',
+    fontSize: 22, fontWeight: '900', color: BRAND_PURPLE,
     letterSpacing: 1,
   },
   cursor: {
-    fontSize: 22, color: '#8B85FF', fontWeight: '300',
+    fontSize: 22, color: BRAND_PURPLE2, fontWeight: '300',
   },
 
   // Footer

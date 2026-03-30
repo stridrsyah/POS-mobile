@@ -1,6 +1,10 @@
 /**
- * src/screens/DashboardScreen.js — Beranda v2
- * Offline support + Dark/Light theme + improved UI
+ * src/screens/DashboardScreen.js — Beranda v2.1
+ * FIX:
+ * - Role label konsisten (Owner/Kasir)
+ * - Ikon kasir diperbaiki ke cash-register
+ * - Tema terang konsisten di seluruh komponen
+ * - Tidak ada garis hitam di bawah
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -12,8 +16,8 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect } from '@react-navigation/native';
 
-import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
+import { useAuth }    from '../context/AuthContext';
+import { useTheme }   from '../context/ThemeContext';
 import { dashboardAPI } from '../services/api';
 import {
   offlineDashboard, isOnline, pendingTransactions, syncInfo,
@@ -21,21 +25,17 @@ import {
 import { FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
 import { formatCurrency } from '../utils/helpers';
 import {
-  StatCard, Card, SectionTitle, EmptyState, OfflineBanner,
-  Skeleton,
+  StatCard, SectionTitle, EmptyState, OfflineBanner, Skeleton,
 } from '../components/UIComponents';
 
-const QuickActionBtn = ({ icon, label, color, onPress, badge, colors, isDark }) => (
+// ── Quick Action Button ───────────────────────────────────
+const QuickActionBtn = ({ icon, label, color, onPress, badge, colors, isMci = false }) => (
   <TouchableOpacity style={qaS.wrap} onPress={onPress} activeOpacity={0.8}>
-    <View style={[
-      qaS.iconBox,
-      {
-        backgroundColor: isDark ? color + '18' : color + '14',
-        borderColor: isDark ? color + '25' : color + '20',
-        borderWidth: 1,
+    <View style={[qaS.iconBox, { backgroundColor: color + '18', borderColor: color + '25', borderWidth: 1 }]}>
+      {isMci
+        ? <MaterialCommunityIcons name={icon} size={22} color={color} />
+        : <Ionicons name={icon} size={22} color={color} />
       }
-    ]}>
-      <Ionicons name={icon} size={22} color={color} />
       {badge ? (
         <View style={[qaS.badge, { backgroundColor: colors.danger }]}>
           <Text style={qaS.badgeTxt}>{badge > 9 ? '9+' : badge}</Text>
@@ -47,45 +47,43 @@ const QuickActionBtn = ({ icon, label, color, onPress, badge, colors, isDark }) 
 );
 
 const qaS = StyleSheet.create({
-  wrap: { alignItems: 'center', gap: 7, flex: 1 },
+  wrap:    { alignItems: 'center', gap: 7, flex: 1 },
   iconBox: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  badge: { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
-  badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
-  label: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
+  badge:   { position: 'absolute', top: -4, right: -4, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  badgeTxt:{ color: '#fff', fontSize: 9, fontWeight: '800' },
+  label:   { fontSize: 11, fontWeight: '600', textAlign: 'center' },
 });
 
+// ── Low Stock Item ────────────────────────────────────────
 const LowStockItem = ({ item, colors }) => (
   <View style={[lsS.item, { borderBottomColor: colors.divider }]}>
     <View style={lsS.left}>
       <Text style={[lsS.name, { color: colors.textWhite }]} numberOfLines={1}>{item.name}</Text>
-      <Text style={[lsS.cat, { color: colors.textDark }]}>{item.category_name || 'Umum'}</Text>
+      <Text style={[lsS.cat,  { color: colors.textDark }]}>{item.category_name || 'Umum'}</Text>
     </View>
     <View style={[
       lsS.badge,
       { backgroundColor: item.stock === 0 ? colors.danger + '20' : colors.warning + '20' }
     ]}>
-      <Text style={[
-        lsS.badgeText,
-        { color: item.stock === 0 ? colors.danger : colors.warning }
-      ]}>
-        {item.stock === 0 ? 'Habis' : `${item.stock}`}
+      <Text style={[lsS.badgeText, { color: item.stock === 0 ? colors.danger : colors.warning }]}>
+        {item.stock === 0 ? 'Habis' : `Sisa ${item.stock}`}
       </Text>
     </View>
   </View>
 );
 
 const lsS = StyleSheet.create({
-  item: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1 },
-  left: { flex: 1, gap: 2 },
-  name: { fontSize: FONTS.sm, fontWeight: '600' },
-  cat: { fontSize: 11 },
-  badge: { borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 3 },
+  item:      { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1 },
+  left:      { flex: 1, gap: 2 },
+  name:      { fontSize: FONTS.sm, fontWeight: '600' },
+  cat:       { fontSize: 11 },
+  badge:     { borderRadius: RADIUS.full, paddingHorizontal: 10, paddingVertical: 3 },
   badgeText: { fontSize: 11, fontWeight: '700' },
 });
 
 export default function DashboardScreen({ navigation }) {
-  const { user, isOwner } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { user, isOwner, getRoleLabel } = useAuth();
+  const { colors, isDark }              = useTheme();
 
   const [stats, setStats]           = useState(null);
   const [isLoading, setIsLoading]   = useState(true);
@@ -124,23 +122,21 @@ export default function DashboardScreen({ navigation }) {
     setIsLoading(false);
     setRefreshing(false);
 
-    // Fade in
-    Animated.timing(fadeAnim, {
-      toValue: 1, duration: 400, useNativeDriver: true,
-    }).start();
+    Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
   };
 
   useFocusEffect(useCallback(() => { loadDashboard(); }, []));
 
-  const today = stats?.today || {};
-  const month = stats?.this_month?.profit_summary || {};
-  const lowStock = stats?.low_stock || [];
+  const today    = stats?.today || {};
+  const month    = stats?.this_month?.profit_summary || {};
+  const lowStock = stats?.low_stock  || [];
   const topProds = stats?.top_products || [];
 
-  const s = getStyles(colors);
+  // ── Role label konsisten ─────────────────────────────────
+  const roleLabel = getRoleLabel ? getRoleLabel() : (isOwner ? 'Owner' : 'Kasir');
 
   return (
-    <View style={[s.container, { backgroundColor: colors.bgDark }]}>
+    <View style={{ flex: 1, backgroundColor: colors.bgDark }}>
       {!online && <OfflineBanner pendingCount={pendingCount} />}
 
       <ScrollView
@@ -158,35 +154,36 @@ export default function DashboardScreen({ navigation }) {
         {/* Header */}
         <LinearGradient
           colors={isDark ? ['#12121F', '#1A1A2E'] : ['#FFFFFF', '#F8F8FF']}
-          style={s.header}
+          style={styles.header}
         >
           <View>
-            <Text style={[s.greeting, { color: colors.textWhite }]}>
+            <Text style={[styles.greeting, { color: colors.textWhite }]}>
               Halo, {user?.name?.split(' ')[0] || 'Kasir'} 👋
             </Text>
-            <Text style={[s.date, { color: colors.textMuted }]}>
+            <Text style={[styles.date, { color: colors.textMuted }]}>
               {new Date().toLocaleDateString('id-ID', {
-                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+                weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
               })}
             </Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {fromCache && (
-              <View style={[s.cacheBadge, { backgroundColor: colors.warning + '20', borderColor: colors.warning + '40' }]}>
+              <View style={[styles.cacheBadge, { backgroundColor: colors.warning + '20', borderColor: colors.warning + '40' }]}>
                 <Ionicons name="cloud-offline-outline" size={11} color={colors.warning} />
-                <Text style={[s.cacheTxt, { color: colors.warning }]}>Cache</Text>
+                <Text style={[styles.cacheTxt, { color: colors.warning }]}>Cache</Text>
               </View>
             )}
-            <View style={[s.roleBadge, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}>
-              <Text style={[s.roleTxt, { color: colors.primary }]}>{user?.role?.toUpperCase()}</Text>
+            {/* Role badge konsisten */}
+            <View style={[styles.roleBadge, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}>
+              <Text style={[styles.roleTxt, { color: colors.primary }]}>{roleLabel.toUpperCase()}</Text>
             </View>
           </View>
         </LinearGradient>
 
         <Animated.View style={{ opacity: fadeAnim }}>
 
-          {/* Today Stats */}
-          <View style={s.section}>
+          {/* Statistik Hari Ini */}
+          <View style={[styles.section, { paddingHorizontal: SPACING.lg }]}>
             <SectionTitle title="📊 Hari Ini" />
             {isLoading ? (
               <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
@@ -194,7 +191,7 @@ export default function DashboardScreen({ navigation }) {
                 <Skeleton height={100} style={{ flex: 1, borderRadius: RADIUS.lg }} />
               </View>
             ) : (
-              <View style={s.statsRow}>
+              <View style={styles.statsRow}>
                 <StatCard
                   label="Omzet"
                   value={formatCurrency(today.revenue || 0)}
@@ -213,9 +210,9 @@ export default function DashboardScreen({ navigation }) {
             )}
           </View>
 
-          {/* Monthly Stats — owner only */}
+          {/* Statistik Bulan Ini — owner only */}
           {isOwner && (
-            <View style={s.section}>
+            <View style={[styles.section, { paddingHorizontal: SPACING.lg }]}>
               <SectionTitle
                 title="📅 Bulan Ini"
                 action={() => navigation.navigate('Reports')}
@@ -226,7 +223,7 @@ export default function DashboardScreen({ navigation }) {
                   <Skeleton height={100} style={{ flex: 1, borderRadius: RADIUS.lg }} />
                 </View>
               ) : (
-                <View style={s.statsRow}>
+                <View style={styles.statsRow}>
                   <StatCard
                     label="Pendapatan"
                     value={formatCurrency(month.total_pendapatan || 0)}
@@ -244,35 +241,87 @@ export default function DashboardScreen({ navigation }) {
             </View>
           )}
 
-          {/* Quick Actions */}
-          <View style={s.section}>
+          {/* Aksi Cepat */}
+          <View style={[styles.section, { paddingHorizontal: SPACING.lg }]}>
             <SectionTitle title="⚡ Aksi Cepat" />
-            <View style={[s.qaCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
-              <View style={s.qaRow}>
-                <QuickActionBtn icon="point-of-sale" label="Kasir" color={colors.primary} onPress={() => navigation.navigate('POS')} colors={colors} isDark={isDark} />
-                <QuickActionBtn icon="receipt-outline" label="Transaksi" color={colors.success} onPress={() => navigation.navigate('Transactions')} colors={colors} isDark={isDark} />
-                <QuickActionBtn icon="cube-outline" label="Produk" color={colors.info} onPress={() => navigation.navigate('Products')} colors={colors} isDark={isDark} />
-                {isOwner && <QuickActionBtn icon="bar-chart-outline" label="Laporan" color="#9C27B0" onPress={() => navigation.navigate('Reports')} colors={colors} isDark={isDark} />}
+            <View style={[styles.qaCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              <View style={styles.qaRow}>
+                {/* Ikon kasir diperbaiki ke cash-register */}
+                <QuickActionBtn
+                  icon="cash-register"
+                  label="Kasir"
+                  color={colors.primary}
+                  onPress={() => navigation.navigate('POS')}
+                  colors={colors}
+                  isMci
+                />
+                <QuickActionBtn
+                  icon="receipt-outline"
+                  label="Transaksi"
+                  color={colors.success}
+                  onPress={() => navigation.navigate('Transactions')}
+                  colors={colors}
+                />
+                <QuickActionBtn
+                  icon="cube-outline"
+                  label="Produk"
+                  color={colors.info}
+                  onPress={() => navigation.navigate('Products')}
+                  colors={colors}
+                />
+                {isOwner && (
+                  <QuickActionBtn
+                    icon="bar-chart-outline"
+                    label="Laporan"
+                    color="#9C27B0"
+                    onPress={() => navigation.navigate('Reports')}
+                    colors={colors}
+                  />
+                )}
               </View>
               {isOwner && (
-                <View style={[s.qaRow, { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: SPACING.md }]}>
-                  <QuickActionBtn icon="analytics-outline" label="Analytics" color={colors.warning} onPress={() => navigation.navigate('Analytics')} colors={colors} isDark={isDark} />
-                  <QuickActionBtn icon="people-outline" label="Karyawan" color="#E91E63" onPress={() => navigation.navigate('Users')} colors={colors} isDark={isDark} />
-                  <QuickActionBtn icon="archive-outline" label="Stok Masuk" color={colors.success} onPress={() => navigation.navigate('StockIn')} colors={colors} isDark={isDark} />
-                  <QuickActionBtn icon="pricetag-outline" label="Promo" color="#FF6584" onPress={() => navigation.navigate('Promos')} colors={colors} isDark={isDark} />
+                <View style={[styles.qaRow, { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: SPACING.md }]}>
+                  <QuickActionBtn
+                    icon="analytics-outline"
+                    label="Analytics"
+                    color={colors.warning}
+                    onPress={() => navigation.navigate('Analytics')}
+                    colors={colors}
+                  />
+                  <QuickActionBtn
+                    icon="people-outline"
+                    label="Karyawan"
+                    color="#E91E63"
+                    onPress={() => navigation.navigate('Users')}
+                    colors={colors}
+                  />
+                  <QuickActionBtn
+                    icon="archive-outline"
+                    label="Stok Masuk"
+                    color={colors.success}
+                    onPress={() => navigation.navigate('StockIn')}
+                    colors={colors}
+                  />
+                  <QuickActionBtn
+                    icon="pricetag-outline"
+                    label="Promo"
+                    color="#FF6584"
+                    onPress={() => navigation.navigate('Promos')}
+                    colors={colors}
+                  />
                 </View>
               )}
             </View>
           </View>
 
-          {/* Low Stock Warning */}
+          {/* Stok Rendah */}
           {lowStock.length > 0 && (
-            <View style={s.section}>
+            <View style={[styles.section, { paddingHorizontal: SPACING.lg }]}>
               <SectionTitle
                 title={`⚠️ Stok Rendah (${lowStock.length})`}
                 action={() => navigation.navigate('Products')}
               />
-              <View style={[s.listCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              <View style={[styles.listCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
                 {lowStock.slice(0, 5).map((item, idx) => (
                   <LowStockItem key={item.id || idx} item={item} colors={colors} />
                 ))}
@@ -280,33 +329,29 @@ export default function DashboardScreen({ navigation }) {
             </View>
           )}
 
-          {/* Top Products */}
+          {/* Produk Terlaris */}
           {topProds.length > 0 && (
-            <View style={s.section}>
+            <View style={[styles.section, { paddingHorizontal: SPACING.lg }]}>
               <SectionTitle title="🏆 Produk Terlaris" action={() => navigation.navigate('Analytics')} />
-              <View style={[s.listCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              <View style={[styles.listCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
                 {topProds.slice(0, 5).map((item, idx) => (
-                  <View key={item.id || idx} style={[s.topItem, { borderBottomColor: colors.divider }]}>
-                    <View style={[s.rankBadge, {
-                      backgroundColor: idx < 3
-                        ? ['#FFD700', '#C0C0C0', '#CD7F32'][idx] + '25'
-                        : colors.bgSurface,
+                  <View key={item.id || idx} style={[styles.topItem, { borderBottomColor: colors.divider }]}>
+                    <View style={[styles.rankBadge, {
+                      backgroundColor: idx < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][idx] + '25' : colors.bgSurface,
                     }]}>
-                      <Text style={[s.rankTxt, {
-                        color: idx < 3
-                          ? ['#FFD700', '#C0C0C0', '#CD7F32'][idx]
-                          : colors.textDark,
+                      <Text style={[styles.rankTxt, {
+                        color: idx < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][idx] : colors.textDark,
                       }]}>{idx + 1}</Text>
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
-                      <Text style={[s.topName, { color: colors.textWhite }]} numberOfLines={1}>
+                      <Text style={[styles.topName, { color: colors.textWhite }]} numberOfLines={1}>
                         {item.name}
                       </Text>
-                      <Text style={[s.topSub, { color: colors.textDark }]}>
+                      <Text style={[styles.topSub, { color: colors.textDark }]}>
                         Terjual: {item.total_qty} unit
                       </Text>
                     </View>
-                    <Text style={[s.topRev, { color: colors.success }]}>
+                    <Text style={[styles.topRev, { color: colors.success }]}>
                       {formatCurrency(item.total_revenue || 0)}
                     </Text>
                   </View>
@@ -317,7 +362,7 @@ export default function DashboardScreen({ navigation }) {
 
           {/* Empty state */}
           {!isLoading && !stats && (
-            <View style={s.section}>
+            <View style={[styles.section, { paddingHorizontal: SPACING.lg }]}>
               <EmptyState
                 icon="cloud-offline-outline"
                 title="Tidak ada data"
@@ -334,19 +379,18 @@ export default function DashboardScreen({ navigation }) {
   );
 }
 
-const getStyles = (colors) => StyleSheet.create({
-  container: { flex: 1 },
+const styles = StyleSheet.create({
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
     paddingTop: 50, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xl,
   },
   greeting: { fontSize: FONTS.xl, fontWeight: '800', letterSpacing: -0.5 },
-  date: { fontSize: FONTS.sm, marginTop: 3 },
+  date:     { fontSize: FONTS.sm, marginTop: 3 },
   roleBadge: {
     paddingHorizontal: SPACING.sm, paddingVertical: 4,
     borderRadius: RADIUS.full, borderWidth: 1,
   },
-  roleTxt: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  roleTxt:   { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
   cacheBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
     paddingHorizontal: SPACING.sm, paddingVertical: 3,
@@ -354,11 +398,11 @@ const getStyles = (colors) => StyleSheet.create({
   },
   cacheTxt: { fontSize: 10, fontWeight: '600' },
 
-  section: { paddingHorizontal: SPACING.lg, marginTop: SPACING.xl },
+  section:  { marginTop: SPACING.xl },
   statsRow: { flexDirection: 'row', gap: SPACING.sm },
 
   qaCard: { borderRadius: RADIUS.xl, borderWidth: 1, padding: SPACING.lg, gap: SPACING.md },
-  qaRow: { flexDirection: 'row', gap: SPACING.md },
+  qaRow:  { flexDirection: 'row', gap: SPACING.md },
 
   listCard: { borderRadius: RADIUS.xl, borderWidth: 1, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
 
@@ -367,8 +411,8 @@ const getStyles = (colors) => StyleSheet.create({
     paddingVertical: 11, borderBottomWidth: 1,
   },
   rankBadge: { width: 30, height: 30, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
-  rankTxt: { fontSize: FONTS.sm, fontWeight: '800' },
-  topName: { fontSize: FONTS.sm, fontWeight: '600' },
-  topSub: { fontSize: 11 },
-  topRev: { fontSize: FONTS.sm, fontWeight: '700' },
+  rankTxt:   { fontSize: FONTS.sm, fontWeight: '800' },
+  topName:   { fontSize: FONTS.sm, fontWeight: '600' },
+  topSub:    { fontSize: 11 },
+  topRev:    { fontSize: FONTS.sm, fontWeight: '700' },
 });

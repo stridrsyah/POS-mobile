@@ -1,5 +1,6 @@
 /**
- * src/screens/LoginScreen.js — v2 dengan theme awareness
+ * src/screens/LoginScreen.js — FIXED: Ikon konsisten (point-of-sale ungu)
+ * Menggunakan MaterialCommunityIcons "point-of-sale" SAMA dengan SplashScreen
  */
 
 import React, { useState, useEffect } from 'react';
@@ -93,12 +94,13 @@ export default function LoginScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          {/* Logo */}
+          {/* ── Logo: MaterialCommunityIcons point-of-sale (KONSISTEN dengan Splash) ── */}
           <Animated.View style={[s.header, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
             <LinearGradient
               colors={['#6C63FF', '#8B85FF']}
               style={s.logoContainer}
             >
+              {/* FIXED: Gunakan MaterialCommunityIcons point-of-sale, SAMA dengan SplashScreen */}
               <MaterialCommunityIcons name="point-of-sale" size={42} color="#fff" />
             </LinearGradient>
             <Text style={[s.appName, { color: colors.textWhite }]}>KasirPOS</Text>
@@ -232,7 +234,7 @@ export default function LoginScreen({ navigation }) {
 
 const getStyles = (colors, isDark) => StyleSheet.create({
   container: { flex: 1 },
-  flex: { flex: 1 },
+  flex:     { flex: 1 },
   scrollContent: {
     flexGrow: 1, justifyContent: 'center',
     padding: SPACING.xl, paddingTop: 50, paddingBottom: 32,
@@ -242,65 +244,40 @@ const getStyles = (colors, isDark) => StyleSheet.create({
     width: 40, height: 40, borderRadius: RADIUS.md,
     alignItems: 'center', justifyContent: 'center', borderWidth: 1,
   },
-
-  header: { alignItems: 'center', marginBottom: SPACING.xxl, gap: SPACING.sm },
+  header:   { alignItems: 'center', marginBottom: SPACING.xxl, gap: SPACING.sm },
+  // borderRadius 28: konsisten antara splash (32 untuk size besar) dan login (28 untuk size normal)
   logoContainer: {
     width: 90, height: 90, borderRadius: 28,
     alignItems: 'center', justifyContent: 'center', marginBottom: 8,
   },
-  appName: { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
-  subtitle: { fontSize: FONTS.md },
-  brandBy: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
-
-  form: { gap: SPACING.md, marginBottom: SPACING.xl },
-  errorBox: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm,
-    borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1,
-  },
-  errorText: { flex: 1, fontSize: FONTS.sm, lineHeight: 18 },
-
-  inputGroup: { gap: 7 },
-  label: { fontSize: FONTS.sm, fontWeight: '600', marginLeft: 2 },
-  inputWrapper: {
-    flexDirection: 'row', alignItems: 'center',
-    borderRadius: RADIUS.md, borderWidth: 1,
-    paddingHorizontal: SPACING.md, height: 54,
-  },
-  inputIcon: { marginRight: SPACING.sm },
-  input: { flex: 1, fontSize: FONTS.md },
-  eyeBtn: { padding: 4 },
-
-  loginButton: { borderRadius: RADIUS.md, overflow: 'hidden', marginTop: SPACING.sm },
-  loginGradient: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    gap: SPACING.sm, height: 54,
-  },
+  appName:    { fontSize: 32, fontWeight: '900', letterSpacing: -1 },
+  subtitle:   { fontSize: FONTS.md },
+  brandBy:    { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
+  form:         { gap: SPACING.md, marginBottom: SPACING.xl },
+  errorBox:     { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.sm, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1 },
+  errorText:    { flex: 1, fontSize: FONTS.sm, lineHeight: 18 },
+  inputGroup:   { gap: 7 },
+  label:        { fontSize: FONTS.sm, fontWeight: '600', marginLeft: 2 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.md, borderWidth: 1, paddingHorizontal: SPACING.md, height: 54 },
+  inputIcon:    { marginRight: SPACING.sm },
+  input:        { flex: 1, fontSize: FONTS.md },
+  eyeBtn:       { padding: 4 },
+  loginButton:  { borderRadius: RADIUS.md, overflow: 'hidden', marginTop: SPACING.sm },
+  loginGradient:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, height: 54 },
   loginButtonText: { fontSize: FONTS.lg, fontWeight: '800', color: '#fff' },
-
-  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  dividerLine: { flex: 1, height: 1 },
-  dividerText: { fontSize: FONTS.xs },
-
-  registerBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1,
-  },
-  registerIcon: {
-    width: 38, height: 38, borderRadius: RADIUS.sm,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  dividerRow:   { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+  dividerLine:  { flex: 1, height: 1 },
+  dividerText:  { fontSize: FONTS.xs },
+  registerBtn:  { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1 },
+  registerIcon: { width: 38, height: 38, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
   registerBtnContent: { flex: 1 },
   registerBtnTitle: { fontSize: FONTS.sm, fontWeight: '700' },
-  registerBtnSub: { fontSize: FONTS.xs, marginTop: 1 },
-
-  serverBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1,
-  },
-  serverLeft: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
-  serverDot: { width: 6, height: 6, borderRadius: 3 },
-  serverLabel: { fontSize: FONTS.xs },
-  serverUrl: { fontSize: FONTS.xs, flex: 1 },
-  serverRight: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  serverEdit: { fontSize: FONTS.xs, fontWeight: '700' },
+  registerBtnSub:   { fontSize: FONTS.xs, marginTop: 1 },
+  serverBtn:    { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1 },
+  serverLeft:   { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 },
+  serverDot:    { width: 6, height: 6, borderRadius: 3 },
+  serverLabel:  { fontSize: FONTS.xs },
+  serverUrl:    { fontSize: FONTS.xs, flex: 1 },
+  serverRight:  { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  serverEdit:   { fontSize: FONTS.xs, fontWeight: '700' },
 });

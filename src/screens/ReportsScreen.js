@@ -1,6 +1,5 @@
 /**
- * src/screens/ReportsScreen.js — Laporan Lengkap
- * Tabs: Penjualan | Laba Rugi | Per Supplier
+ * src/screens/ReportsScreen.js — Laporan Lengkap (Theme-Aware)
  */
 import React, { useState, useCallback } from 'react';
 import {
@@ -12,7 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Print   from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { reportsAPI } from '../services/api';
-import { COLORS, FONTS, SPACING, RADIUS } from '../utils/theme';
+import { FONTS, SPACING, RADIUS } from '../utils/theme';
+import { useTheme } from '../context/ThemeContext';
 import { formatCurrency, toApiDate } from '../utils/helpers';
 
 const today      = () => toApiDate();
@@ -29,17 +29,8 @@ const PRESETS = [
 const TABS      = ['Penjualan', 'Laba Rugi', 'Per Supplier'];
 const TAB_ICONS = ['receipt-outline', 'cash-outline', 'business-outline'];
 
-function StatCard({ label, value, color, icon, wide }) {
-  return (
-    <View style={[s.statCard, wide && s.statCardWide, { borderLeftColor: color }]}>
-      <Ionicons name={icon} size={16} color={color} />
-      <Text style={s.statLbl}>{label}</Text>
-      <Text style={[s.statVal, { color }]}>{value}</Text>
-    </View>
-  );
-}
-
 export default function ReportsScreen({ navigation }) {
+  const { colors } = useTheme();
   const [activeTab,    setActiveTab]    = useState(0);
   const [activePreset, setActivePreset] = useState(0);
   const [startDate,    setStartDate]    = useState(today());
@@ -74,7 +65,6 @@ export default function ReportsScreen({ navigation }) {
 
   React.useEffect(() => { loadReport(); }, [loadReport]);
 
-  // ─── Export PDF ─────────────────────────────────────────────
   const exportPDF = async () => {
     setExporting(true);
     const css = `<style>
@@ -82,60 +72,24 @@ export default function ReportsScreen({ navigation }) {
       .sub{color:#888;text-align:center;font-size:12px;margin-bottom:16px}
       table{width:100%;border-collapse:collapse;font-size:11px}
       th{background:#6C63FF;color:#fff;padding:7px 8px;text-align:left}
-      td{padding:5px 8px;border-bottom:1px solid #eee}tr:nth-child(even){background:#f9f9f9}
+      td{padding:5px 8px;border-bottom:1px solid #eee}
       .g{color:#4CAF50;font-weight:bold}.r{color:#F44336;font-weight:bold}
-      .sh{background:#1a1a2e;color:#fff;padding:8px;margin-top:12px;font-size:12px;font-weight:bold}
-      .sm{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-      .sb{background:#f5f5f5;padding:8px 12px;border-radius:6px}
-      .sl{font-size:10px;color:#888}.sv{font-size:14px;font-weight:bold;color:#6C63FF}
     </style>`;
     let html = '';
 
     if (activeTab === 0 && salesData) {
       const trxs = salesData.transactions || [];
-      const LMAP = { cash:'CASH', transfer:'TRANSFER', qris:'QRIS', card:'KARTU' };
       html = css + `<h2>Laporan Penjualan</h2>
-        <p class="sub">${startDate} s/d ${endDate} | Total: <b>${formatCurrency(salesData.total||0)}</b> | ${trxs.length} Transaksi</p>
+        <p class="sub">${startDate} s/d ${endDate} | Total: ${formatCurrency(salesData.total||0)}</p>
         <table><tr><th>No</th><th>Invoice</th><th>Tanggal</th><th>Kasir</th><th>Total</th><th>Metode</th></tr>
-        ${trxs.map((t,i) => {
-          const m = t.payment_method ? String(t.payment_method).toLowerCase().trim() : null;
-          return `<tr><td>${i+1}</td><td>${t.invoice_number}</td><td>${(t.transaction_date||'').slice(0,10)}</td>
-          <td>${t.cashier_name||'-'}</td><td>${formatCurrency(t.total)}</td>
-          <td>${m?(LMAP[m]||m.toUpperCase()):'-'}</td></tr>`;
-        }).join('')}</table>`;
-
+        ${trxs.map((t,i) => `<tr><td>${i+1}</td><td>${t.invoice_number}</td><td>${(t.transaction_date||'').slice(0,10)}</td>
+          <td>${t.cashier_name||'-'}</td><td>${formatCurrency(t.total)}</td><td>${t.payment_method||'-'}</td></tr>`).join('')}
+        </table>`;
     } else if (activeTab === 1 && profitData) {
       const sm = profitData.summary || {};
-      const daily = profitData.daily || [];
-      const byProd = profitData.by_product || [];
       html = css + `<h2>Laporan Laba Rugi</h2>
         <p class="sub">${startDate} s/d ${endDate}</p>
-        <div class="sm">
-          <div class="sb"><div class="sl">Pendapatan</div><div class="sv">${formatCurrency(sm.total_revenue||0)}</div></div>
-          <div class="sb"><div class="sl">HPP</div><div class="sv">${formatCurrency(sm.total_cost||0)}</div></div>
-          <div class="sb"><div class="sl">Laba Bersih</div><div class="sv" style="color:#4CAF50">${formatCurrency(sm.total_profit||0)}</div></div>
-        </div>
-        <table><tr><th>Tanggal</th><th>Pendapatan</th><th>HPP</th><th>Laba</th></tr>
-        ${daily.map(d=>`<tr><td>${d.date||'-'}</td><td>${formatCurrency(d.revenue||0)}</td>
-          <td>${formatCurrency(d.cost||0)}</td>
-          <td class="${(d.profit||0)>=0?'g':'r'}">${formatCurrency(d.profit||0)}</td></tr>`).join('')}
-        </table>
-        ${byProd.length>0?`<h3 style="color:#6C63FF;margin-top:20px">Laba Per Produk</h3>
-        <table><tr><th>Produk</th><th>Qty</th><th>Pendapatan</th><th>HPP</th><th>Laba</th></tr>
-        ${byProd.map(p=>`<tr><td>${p.product_name}</td><td>${p.total_qty}</td>
-          <td>${formatCurrency(p.revenue||0)}</td><td>${formatCurrency(p.cost||0)}</td>
-          <td class="${(p.profit||0)>=0?'g':'r'}">${formatCurrency(p.profit||0)}</td></tr>`).join('')}
-        </table>`:''}`;
-
-    } else if (activeTab === 2 && supplierData && supplierData.length > 0) {
-      const tot = supplierData.reduce((a,x)=>a+Number(x.total_revenue||0),0);
-      html = css + `<h2>Laporan Penjualan Per Supplier</h2>
-        <p class="sub">${startDate} s/d ${endDate} | Total: <b>${formatCurrency(tot)}</b></p>
-        ${supplierData.map(sup=>`
-          <div class="sh">&#127970; ${sup.supplier_name} — ${formatCurrency(sup.total_revenue||0)} | ${sup.total_qty||0} unit | ${sup.total_transaksi||0} trx</div>
-          <table><tr><th>Produk</th><th>Qty</th><th>Penjualan</th></tr>
-          ${(sup.products||[]).map(p=>`<tr><td>${p.product_name}</td><td>${p.total_qty}</td><td>${formatCurrency(p.total_revenue||0)}</td></tr>`).join('')}
-          </table>`).join('')}`;
+        <p>Pendapatan: ${formatCurrency(sm.total_revenue||0)} | HPP: ${formatCurrency(sm.total_cost||0)} | Laba: ${formatCurrency(sm.total_profit||0)}</p>`;
     }
 
     if (!html) { Alert.alert('Info','Tidak ada data'); setExporting(false); return; }
@@ -146,9 +100,8 @@ export default function ReportsScreen({ navigation }) {
     setExporting(false);
   };
 
-  // ─── Render Penjualan ────────────────────────────────────────
   const renderSales = () => {
-    if (!salesData) return <Text style={s.noData}>Tidak ada data</Text>;
+    if (!salesData) return <Text style={[s.noData, { color: colors.textDark }]}>Tidak ada data</Text>;
     const trxs = salesData.transactions || [];
     const LMAP = { cash:'CASH', transfer:'TRANSFER', qris:'QRIS', card:'KARTU' };
     const normM = (m) => m ? String(m).toLowerCase().trim() : null;
@@ -161,39 +114,51 @@ export default function ReportsScreen({ navigation }) {
     return (
       <View>
         <View style={s.cardRow}>
-          <StatCard label="Total Penjualan" value={formatCurrency(salesData.total||0)} color={COLORS.primary} icon="trending-up-outline" wide />
+          <View style={[s.statCard, s.statCardWide, { backgroundColor: colors.bgCard, borderColor: colors.border, borderLeftColor: colors.primary }]}>
+            <Ionicons name="trending-up-outline" size={16} color={colors.primary} />
+            <Text style={[s.statLbl, { color: colors.textMuted }]}>Total Penjualan</Text>
+            <Text style={[s.statVal, { color: colors.primary }]}>{formatCurrency(salesData.total||0)}</Text>
+          </View>
         </View>
         <View style={s.cardRow}>
-          <StatCard label="Transaksi"   value={String(trxs.length)} color={COLORS.warning} icon="receipt-outline" />
-          <StatCard label="Rata-rata"   value={formatCurrency(trxs.length>0?(salesData.total||0)/trxs.length:0)} color={COLORS.success} icon="stats-chart-outline" />
+          <View style={[s.statCard, { backgroundColor: colors.bgCard, borderColor: colors.border, borderLeftColor: colors.warning }]}>
+            <Ionicons name="receipt-outline" size={16} color={colors.warning} />
+            <Text style={[s.statLbl, { color: colors.textMuted }]}>Transaksi</Text>
+            <Text style={[s.statVal, { color: colors.warning }]}>{String(trxs.length)}</Text>
+          </View>
+          <View style={[s.statCard, { backgroundColor: colors.bgCard, borderColor: colors.border, borderLeftColor: colors.success }]}>
+            <Ionicons name="stats-chart-outline" size={16} color={colors.success} />
+            <Text style={[s.statLbl, { color: colors.textMuted }]}>Rata-rata</Text>
+            <Text style={[s.statVal, { color: colors.success }]}>{formatCurrency(trxs.length>0?(salesData.total||0)/trxs.length:0)}</Text>
+          </View>
         </View>
         {Object.keys(byMethod).length > 0 && (
-          <View style={s.section}>
-            <Text style={s.sTitle}>Per Metode Pembayaran</Text>
+          <View style={[s.section, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <Text style={[s.sTitle, { color: colors.textMuted }]}>Per Metode Pembayaran</Text>
             {Object.entries(byMethod).map(([k,v])=>(
-              <View key={k} style={s.dRow}>
-                <Text style={s.dLabel}>{k}</Text>
-                <Text style={[s.dValue,{color:COLORS.primary}]}>{formatCurrency(v)}</Text>
+              <View key={k} style={[s.dRow, { borderBottomColor: colors.divider }]}>
+                <Text style={[s.dLabel, { color: colors.textLight }]}>{k}</Text>
+                <Text style={[s.dValue, { color: colors.primary }]}>{formatCurrency(v)}</Text>
               </View>
             ))}
           </View>
         )}
-        <View style={s.section}>
-          <Text style={s.sTitle}>Daftar Transaksi ({trxs.length})</Text>
+        <View style={[s.section, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <Text style={[s.sTitle, { color: colors.textMuted }]}>Daftar Transaksi ({trxs.length})</Text>
           {trxs.length === 0
-            ? <Text style={s.noData}>Belum ada transaksi</Text>
+            ? <Text style={[s.noData, { color: colors.textDark }]}>Belum ada transaksi</Text>
             : trxs.map((t,i) => {
                 const raw = normM(t.payment_method);
                 const lbl = raw ? (LMAP[raw]||raw.toUpperCase()) : null;
                 return (
-                  <View key={`trx-${t.id||i}`} style={s.trxRow}>
+                  <View key={`trx-${t.id||i}`} style={[s.trxRow, { borderBottomColor: colors.divider }]}>
                     <View style={s.trxL}>
-                      <Text style={s.trxInv}>{t.invoice_number}</Text>
-                      <Text style={s.trxSub}>{(t.transaction_date||'').slice(0,16).replace('T',' ')} • {t.cashier_name||'-'}</Text>
+                      <Text style={[s.trxInv, { color: colors.textWhite }]}>{t.invoice_number}</Text>
+                      <Text style={[s.trxSub, { color: colors.textDark }]}>{(t.transaction_date||'').slice(0,16).replace('T',' ')} • {t.cashier_name||'-'}</Text>
                     </View>
                     <View style={s.trxR}>
-                      <Text style={s.trxTotal}>{formatCurrency(t.total)}</Text>
-                      {lbl ? <Text style={s.trxMethod}>{lbl}</Text> : null}
+                      <Text style={[s.trxTotal, { color: colors.primary }]}>{formatCurrency(t.total)}</Text>
+                      {lbl ? <Text style={[s.trxMethod, { color: colors.textDark }]}>{lbl}</Text> : null}
                     </View>
                   </View>
                 );
@@ -204,9 +169,8 @@ export default function ReportsScreen({ navigation }) {
     );
   };
 
-  // ─── Render Laba Rugi ────────────────────────────────────────
   const renderProfit = () => {
-    if (!profitData) return <Text style={s.noData}>Tidak ada data</Text>;
+    if (!profitData) return <Text style={[s.noData, { color: colors.textDark }]}>Tidak ada data</Text>;
     const sm     = profitData.summary || {};
     const daily  = profitData.daily   || [];
     const byProd = profitData.by_product || [];
@@ -215,42 +179,54 @@ export default function ReportsScreen({ navigation }) {
     return (
       <View>
         <View style={s.cardRow}>
-          <StatCard label="Pendapatan"   value={formatCurrency(sm.total_revenue||0)} color={COLORS.primary} icon="trending-up-outline" />
-          <StatCard label="HPP (Modal)"  value={formatCurrency(sm.total_cost||0)}    color={COLORS.warning}  icon="cart-outline" />
+          <View style={[s.statCard, { backgroundColor: colors.bgCard, borderColor: colors.border, borderLeftColor: colors.primary }]}>
+            <Ionicons name="trending-up-outline" size={16} color={colors.primary} />
+            <Text style={[s.statLbl, { color: colors.textMuted }]}>Pendapatan</Text>
+            <Text style={[s.statVal, { color: colors.primary }]}>{formatCurrency(sm.total_revenue||0)}</Text>
+          </View>
+          <View style={[s.statCard, { backgroundColor: colors.bgCard, borderColor: colors.border, borderLeftColor: colors.warning }]}>
+            <Ionicons name="cart-outline" size={16} color={colors.warning} />
+            <Text style={[s.statLbl, { color: colors.textMuted }]}>HPP (Modal)</Text>
+            <Text style={[s.statVal, { color: colors.warning }]}>{formatCurrency(sm.total_cost||0)}</Text>
+          </View>
         </View>
         <View style={s.cardRow}>
-          <StatCard label="Laba Bersih"  value={formatCurrency(sm.total_profit||0)}  color={COLORS.success}  icon="cash-outline" wide />
+          <View style={[s.statCard, s.statCardWide, { backgroundColor: colors.bgCard, borderColor: colors.border, borderLeftColor: colors.success }]}>
+            <Ionicons name="cash-outline" size={16} color={colors.success} />
+            <Text style={[s.statLbl, { color: colors.textMuted }]}>Laba Bersih</Text>
+            <Text style={[s.statVal, { color: colors.success }]}>{formatCurrency(sm.total_profit||0)}</Text>
+          </View>
         </View>
-        <View style={[s.section,{flexDirection:'row',justifyContent:'space-between',alignItems:'center'}]}>
-          <Text style={s.dLabel}>Margin Keuntungan</Text>
-          <Text style={[s.dValue,{fontSize:FONTS.xl,color:Number(margin)>=20?COLORS.success:COLORS.warning}]}>{margin}%</Text>
+        <View style={[s.section, { flexDirection:'row', justifyContent:'space-between', alignItems:'center', backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+          <Text style={[s.dLabel, { color: colors.textMuted }]}>Margin Keuntungan</Text>
+          <Text style={[s.dValue, { fontSize: FONTS.xl, color: Number(margin)>=20 ? colors.success : colors.warning }]}>{margin}%</Text>
         </View>
         {daily.length > 0 && (
-          <View style={s.section}>
-            <Text style={s.sTitle}>Laba Harian</Text>
-            <View style={s.tHead}>
-              {['Tanggal','Pendapatan','HPP','Laba'].map(h=><Text key={h} style={s.th}>{h}</Text>)}
+          <View style={[s.section, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <Text style={[s.sTitle, { color: colors.textMuted }]}>Laba Harian</Text>
+            <View style={[s.tHead, { backgroundColor: colors.bgMedium }]}>
+              {['Tanggal','Pendapatan','HPP','Laba'].map(h=><Text key={h} style={[s.th, { color: colors.textMuted }]}>{h}</Text>)}
             </View>
             {daily.map((d,i)=>(
-              <View key={`day-${i}`} style={[s.tRow,i%2===0&&s.tRowEven]}>
-                <Text style={s.td}>{(d.date||'-').slice(5)}</Text>
-                <Text style={s.td}>{formatCurrency(d.revenue||0)}</Text>
-                <Text style={s.td}>{formatCurrency(d.cost||0)}</Text>
-                <Text style={[s.td,{color:(d.profit||0)>=0?COLORS.success:COLORS.danger}]}>{formatCurrency(d.profit||0)}</Text>
+              <View key={`day-${i}`} style={[s.tRow, { borderBottomColor: colors.divider }, i%2===0 && { backgroundColor: colors.bgSurface + '40' }]}>
+                <Text style={[s.td, { color: colors.textLight }]}>{(d.date||'-').slice(5)}</Text>
+                <Text style={[s.td, { color: colors.textLight }]}>{formatCurrency(d.revenue||0)}</Text>
+                <Text style={[s.td, { color: colors.textLight }]}>{formatCurrency(d.cost||0)}</Text>
+                <Text style={[s.td, { color:(d.profit||0)>=0 ? colors.success : colors.danger }]}>{formatCurrency(d.profit||0)}</Text>
               </View>
             ))}
           </View>
         )}
         {byProd.length > 0 && (
-          <View style={s.section}>
-            <Text style={s.sTitle}>Laba Per Produk (Top 10)</Text>
+          <View style={[s.section, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <Text style={[s.sTitle, { color: colors.textMuted }]}>Laba Per Produk (Top 10)</Text>
             {byProd.slice(0,10).map((p,i)=>(
-              <View key={`bp-${i}`} style={s.dRow}>
+              <View key={`bp-${i}`} style={[s.dRow, { borderBottomColor: colors.divider }]}>
                 <View style={{flex:1}}>
-                  <Text style={s.dLabel} numberOfLines={1}>{p.product_name}</Text>
-                  <Text style={{fontSize:FONTS.xs,color:COLORS.textDark}}>Qty: {p.total_qty} | HPP: {formatCurrency(p.cost||0)}</Text>
+                  <Text style={[s.dLabel, { color: colors.textLight }]} numberOfLines={1}>{p.product_name}</Text>
+                  <Text style={{ fontSize: FONTS.xs, color: colors.textDark }}>Qty: {p.total_qty}</Text>
                 </View>
-                <Text style={[s.dValue,{color:(p.profit||0)>=0?COLORS.success:COLORS.danger}]}>{formatCurrency(p.profit||0)}</Text>
+                <Text style={[s.dValue, { color:(p.profit||0)>=0 ? colors.success : colors.danger }]}>{formatCurrency(p.profit||0)}</Text>
               </View>
             ))}
           </View>
@@ -259,58 +235,51 @@ export default function ReportsScreen({ navigation }) {
     );
   };
 
-  // ─── Render Per Supplier ─────────────────────────────────────
   const renderSupplier = () => {
-    if (!supplierData) return <Text style={s.noData}>Tidak ada data</Text>;
-    if (supplierData.length === 0) return <Text style={s.noData}>Tidak ada penjualan di periode ini</Text>;
+    if (!supplierData) return <Text style={[s.noData, { color: colors.textDark }]}>Tidak ada data</Text>;
+    if (supplierData.length === 0) return <Text style={[s.noData, { color: colors.textDark }]}>Tidak ada penjualan di periode ini</Text>;
     const totalRev = supplierData.reduce((a,x)=>a+Number(x.total_revenue||0),0);
     const totalQty = supplierData.reduce((a,x)=>a+Number(x.total_qty||0),0);
     return (
       <View>
         <View style={s.cardRow}>
-          <StatCard label="Total Penjualan"   value={formatCurrency(totalRev)}          color={COLORS.primary} icon="trending-up-outline" wide />
-        </View>
-        <View style={s.cardRow}>
-          <StatCard label="Jumlah Supplier"   value={String(supplierData.length)}       color={COLORS.warning}  icon="business-outline" />
-          <StatCard label="Total Unit Terjual" value={String(totalQty)}                 color={COLORS.success} icon="cube-outline" />
+          <View style={[s.statCard, s.statCardWide, { backgroundColor: colors.bgCard, borderColor: colors.border, borderLeftColor: colors.primary }]}>
+            <Ionicons name="trending-up-outline" size={16} color={colors.primary} />
+            <Text style={[s.statLbl, { color: colors.textMuted }]}>Total Penjualan</Text>
+            <Text style={[s.statVal, { color: colors.primary }]}>{formatCurrency(totalRev)}</Text>
+          </View>
         </View>
         {supplierData.map((sup,si)=>{
           const pct = totalRev>0?((Number(sup.total_revenue||0)/totalRev)*100).toFixed(1):'0';
           return (
-            <View key={`sup-${si}`} style={s.supCard}>
+            <View key={`sup-${si}`} style={[s.supCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
               <View style={s.supHeader}>
                 <View style={{flex:1}}>
-                  <Text style={s.supName}>🏢 {sup.supplier_name}</Text>
-                  <Text style={{fontSize:FONTS.xs,color:COLORS.textDark,marginTop:2}}>
-                    {sup.total_transaksi||0} transaksi • {sup.total_qty||0} unit terjual
+                  <Text style={[s.supName, { color: colors.textWhite }]}>🏢 {sup.supplier_name}</Text>
+                  <Text style={{ fontSize: FONTS.xs, color: colors.textDark, marginTop:2 }}>
+                    {sup.total_transaksi||0} transaksi • {sup.total_qty||0} unit
                   </Text>
                 </View>
                 <View style={{alignItems:'flex-end'}}>
-                  <Text style={[s.supRev,{color:COLORS.primary}]}>{formatCurrency(sup.total_revenue||0)}</Text>
-                  <Text style={{fontSize:FONTS.xs,color:COLORS.textDark}}>{pct}% dari total</Text>
+                  <Text style={[s.supRev, { color: colors.primary }]}>{formatCurrency(sup.total_revenue||0)}</Text>
+                  <Text style={{ fontSize: FONTS.xs, color: colors.textDark }}>{pct}%</Text>
                 </View>
               </View>
-              <View style={{height:4,backgroundColor:COLORS.border,borderRadius:2,marginVertical:8}}>
-                <View style={{height:4,width:`${Math.min(100,Number(pct))}%`,backgroundColor:COLORS.primary,borderRadius:2}}/>
+              <View style={{ height:4, backgroundColor: colors.border, borderRadius:2, marginVertical:8 }}>
+                <View style={{ height:4, width:`${Math.min(100,Number(pct))}%`, backgroundColor: colors.primary, borderRadius:2 }}/>
               </View>
-              {sup.total_profit !== undefined && (
-                <View style={{flexDirection:'row',justifyContent:'space-between',marginBottom:8}}>
-                  <Text style={{fontSize:FONTS.xs,color:COLORS.textDark}}>Estimasi Laba Bersih</Text>
-                  <Text style={{fontSize:FONTS.xs,color:COLORS.success,fontWeight:'bold'}}>{formatCurrency(sup.total_profit||0)}</Text>
-                </View>
-              )}
               {(sup.products||[]).length > 0 && (
                 <View>
-                  <View style={s.tHead}>
-                    <Text style={[s.th,{flex:2}]}>Produk</Text>
-                    <Text style={s.th}>Qty</Text>
-                    <Text style={s.th}>Penjualan</Text>
+                  <View style={[s.tHead, { backgroundColor: colors.bgMedium }]}>
+                    <Text style={[s.th, { flex:2, color: colors.textMuted }]}>Produk</Text>
+                    <Text style={[s.th, { color: colors.textMuted }]}>Qty</Text>
+                    <Text style={[s.th, { color: colors.textMuted }]}>Penjualan</Text>
                   </View>
                   {sup.products.map((p,pi)=>(
-                    <View key={`p-${pi}`} style={[s.tRow,pi%2===0&&s.tRowEven]}>
-                      <Text style={[s.td,{flex:2}]} numberOfLines={1}>{p.product_name}</Text>
-                      <Text style={s.td}>{p.total_qty}</Text>
-                      <Text style={[s.td,{color:COLORS.primary}]}>{formatCurrency(p.total_revenue||0)}</Text>
+                    <View key={`p-${pi}`} style={[s.tRow, { borderBottomColor: colors.divider }, pi%2===0 && { backgroundColor: colors.bgSurface + '40' }]}>
+                      <Text style={[s.td, { flex:2, color: colors.textLight }]} numberOfLines={1}>{p.product_name}</Text>
+                      <Text style={[s.td, { color: colors.textLight }]}>{p.total_qty}</Text>
+                      <Text style={[s.td, { color: colors.primary }]}>{formatCurrency(p.total_revenue||0)}</Text>
                     </View>
                   ))}
                 </View>
@@ -323,38 +292,44 @@ export default function ReportsScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={s.container} edges={['top']}>
-      <View style={s.header}>
+    <SafeAreaView style={[s.container, { backgroundColor: colors.bgDark }]} edges={['top']}>
+      <View style={[s.header, { backgroundColor: colors.bgMedium, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textWhite} />
+          <Ionicons name="arrow-back" size={24} color={colors.textWhite} />
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Laporan</Text>
-        <TouchableOpacity style={[s.exportBtn, exporting&&{opacity:0.6}]} onPress={exportPDF} disabled={exporting}>
+        <Text style={[s.headerTitle, { color: colors.textWhite }]}>Laporan</Text>
+        <TouchableOpacity style={[s.exportBtn, { backgroundColor: colors.primary }, exporting&&{opacity:0.6}]} onPress={exportPDF} disabled={exporting}>
           {exporting
             ? <ActivityIndicator size="small" color="#fff" />
             : <><Ionicons name="download-outline" size={16} color="#fff"/><Text style={s.exportTxt}>PDF</Text></>}
         </TouchableOpacity>
       </View>
 
-      <View style={s.presetRow}>
+      <View style={[s.presetRow, { backgroundColor: colors.bgMedium }]}>
         {PRESETS.map((p,i)=>(
-          <TouchableOpacity key={p.label} style={[s.pBtn,activePreset===i&&s.pBtnA]} onPress={()=>applyPreset(i)}>
-            <Text style={[s.pTxt,activePreset===i&&s.pTxtA]}>{p.label}</Text>
+          <TouchableOpacity key={p.label}
+            style={[s.pBtn, { backgroundColor: activePreset===i ? colors.primary : colors.bgCard, borderColor: activePreset===i ? colors.primary : colors.border }]}
+            onPress={()=>applyPreset(i)}
+          >
+            <Text style={[s.pTxt, { color: activePreset===i ? '#fff' : colors.textMuted }]}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <View style={s.tabRow}>
+      <View style={[s.tabRow, { backgroundColor: colors.bgMedium }]}>
         {TABS.map((t,i)=>(
-          <TouchableOpacity key={t} style={[s.tab,activeTab===i&&s.tabA]} onPress={()=>setActiveTab(i)}>
-            <Ionicons name={TAB_ICONS[i]} size={13} color={activeTab===i?COLORS.primary:COLORS.textMuted}/>
-            <Text style={[s.tabTxt,activeTab===i&&s.tabTxtA]}>{t}</Text>
+          <TouchableOpacity key={t}
+            style={[s.tab, { backgroundColor: activeTab===i ? colors.primary+'20' : colors.bgCard, borderColor: activeTab===i ? colors.primary : colors.border }]}
+            onPress={()=>setActiveTab(i)}
+          >
+            <Ionicons name={TAB_ICONS[i]} size={13} color={activeTab===i ? colors.primary : colors.textMuted}/>
+            <Text style={[s.tabTxt, { color: activeTab===i ? colors.primary : colors.textMuted }]}>{t}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {isLoading
-        ? <View style={s.loading}><ActivityIndicator size="large" color={COLORS.primary}/></View>
+        ? <View style={s.loading}><ActivityIndicator size="large" color={colors.primary}/></View>
         : <ScrollView contentContainerStyle={s.body} showsVerticalScrollIndicator={false}>
             {activeTab===0 && renderSales()}
             {activeTab===1 && renderProfit()}
@@ -367,48 +342,43 @@ export default function ReportsScreen({ navigation }) {
 }
 
 const s = StyleSheet.create({
-  container:    { flex:1, backgroundColor:COLORS.bgDark },
-  header:       { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:SPACING.xl, paddingVertical:SPACING.md, backgroundColor:COLORS.bgMedium, borderBottomWidth:1, borderBottomColor:COLORS.border },
-  headerTitle:  { fontSize:FONTS.lg, fontWeight:FONTS.bold, color:COLORS.textWhite },
-  exportBtn:    { flexDirection:'row', alignItems:'center', gap:4, backgroundColor:COLORS.primary, borderRadius:RADIUS.md, paddingHorizontal:SPACING.md, paddingVertical:8 },
+  container:    { flex:1 },
+  header:       { flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingHorizontal:SPACING.xl, paddingVertical:SPACING.md, borderBottomWidth:1 },
+  headerTitle:  { fontSize:FONTS.lg, fontWeight:'bold' },
+  exportBtn:    { flexDirection:'row', alignItems:'center', gap:4, borderRadius:RADIUS.md, paddingHorizontal:SPACING.md, paddingVertical:8 },
   exportTxt:    { color:'#fff', fontSize:FONTS.sm, fontWeight:'600' },
-  presetRow:    { flexDirection:'row', backgroundColor:COLORS.bgMedium, paddingHorizontal:SPACING.lg, paddingBottom:SPACING.md, gap:SPACING.sm },
-  pBtn:         { flex:1, paddingVertical:7, alignItems:'center', borderRadius:RADIUS.md, backgroundColor:COLORS.bgCard, borderWidth:1, borderColor:COLORS.border },
-  pBtnA:        { backgroundColor:COLORS.primary, borderColor:COLORS.primary },
-  pTxt:         { fontSize:FONTS.xs, color:COLORS.textMuted, fontWeight:'500' },
-  pTxtA:        { color:'#fff', fontWeight:'700' },
-  tabRow:       { flexDirection:'row', backgroundColor:COLORS.bgMedium, paddingHorizontal:SPACING.lg, paddingBottom:SPACING.md, gap:SPACING.sm },
-  tab:          { flex:1, paddingVertical:8, alignItems:'center', borderRadius:RADIUS.md, backgroundColor:COLORS.bgCard, borderWidth:1, borderColor:COLORS.border, gap:2 },
-  tabA:         { backgroundColor:COLORS.primary+'20', borderColor:COLORS.primary },
-  tabTxt:       { fontSize:FONTS.xs, color:COLORS.textMuted, fontWeight:'500' },
-  tabTxtA:      { color:COLORS.primary, fontWeight:'700' },
+  presetRow:    { flexDirection:'row', paddingHorizontal:SPACING.lg, paddingBottom:SPACING.md, gap:SPACING.sm },
+  pBtn:         { flex:1, paddingVertical:7, alignItems:'center', borderRadius:RADIUS.md, borderWidth:1 },
+  pTxt:         { fontSize:FONTS.xs, fontWeight:'500' },
+  tabRow:       { flexDirection:'row', paddingHorizontal:SPACING.lg, paddingBottom:SPACING.md, gap:SPACING.sm },
+  tab:          { flex:1, paddingVertical:8, alignItems:'center', borderRadius:RADIUS.md, borderWidth:1, gap:2 },
+  tabTxt:       { fontSize:FONTS.xs, fontWeight:'500' },
   loading:      { flex:1, alignItems:'center', justifyContent:'center' },
   body:         { padding:SPACING.lg },
   cardRow:      { flexDirection:'row', gap:SPACING.md, marginBottom:SPACING.md },
-  statCard:     { flex:1, backgroundColor:COLORS.bgCard, borderRadius:RADIUS.lg, padding:SPACING.md, borderWidth:1, borderColor:COLORS.border, borderLeftWidth:3, gap:3 },
+  statCard:     { flex:1, borderRadius:RADIUS.lg, padding:SPACING.md, borderWidth:1, borderLeftWidth:3, gap:3 },
   statCardWide: { flex:2 },
-  statLbl:      { fontSize:FONTS.xs, color:COLORS.textMuted, marginTop:3 },
+  statLbl:      { fontSize:FONTS.xs, marginTop:3 },
   statVal:      { fontSize:FONTS.md, fontWeight:'bold' },
-  section:      { backgroundColor:COLORS.bgCard, borderRadius:RADIUS.lg, padding:SPACING.lg, marginBottom:SPACING.md, borderWidth:1, borderColor:COLORS.border },
-  sTitle:       { fontSize:FONTS.sm, fontWeight:'bold', color:COLORS.textMuted, textTransform:'uppercase', letterSpacing:0.5, marginBottom:SPACING.md },
-  noData:       { color:COLORS.textDark, textAlign:'center', paddingVertical:SPACING.xl },
-  dRow:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:8, borderBottomWidth:1, borderBottomColor:COLORS.divider },
-  dLabel:       { fontSize:FONTS.sm, color:COLORS.textLight, fontWeight:'500' },
-  dValue:       { fontSize:FONTS.sm, color:COLORS.primary, fontWeight:'bold' },
-  tHead:        { flexDirection:'row', backgroundColor:COLORS.bgMedium, borderRadius:RADIUS.sm, padding:SPACING.sm, marginBottom:4 },
-  th:           { flex:1, fontSize:FONTS.xs, color:COLORS.textMuted, fontWeight:'600' },
-  tRow:         { flexDirection:'row', paddingVertical:5, borderBottomWidth:1, borderBottomColor:COLORS.divider },
-  tRowEven:     { backgroundColor:COLORS.bgMedium+'40' },
-  td:           { flex:1, fontSize:FONTS.xs, color:COLORS.textLight },
-  trxRow:       { flexDirection:'row', justifyContent:'space-between', paddingVertical:8, borderBottomWidth:1, borderBottomColor:COLORS.divider },
+  section:      { borderRadius:RADIUS.lg, padding:SPACING.lg, marginBottom:SPACING.md, borderWidth:1 },
+  sTitle:       { fontSize:FONTS.sm, fontWeight:'bold', textTransform:'uppercase', letterSpacing:0.5, marginBottom:SPACING.md },
+  noData:       { textAlign:'center', paddingVertical:SPACING.xl },
+  dRow:         { flexDirection:'row', justifyContent:'space-between', alignItems:'center', paddingVertical:8, borderBottomWidth:1 },
+  dLabel:       { fontSize:FONTS.sm, fontWeight:'500' },
+  dValue:       { fontSize:FONTS.sm, fontWeight:'bold' },
+  tHead:        { flexDirection:'row', borderRadius:RADIUS.sm, padding:SPACING.sm, marginBottom:4 },
+  th:           { flex:1, fontSize:FONTS.xs, fontWeight:'600' },
+  tRow:         { flexDirection:'row', paddingVertical:5, borderBottomWidth:1 },
+  td:           { flex:1, fontSize:FONTS.xs },
+  trxRow:       { flexDirection:'row', justifyContent:'space-between', paddingVertical:8, borderBottomWidth:1 },
   trxL:         { flex:1, gap:2 },
-  trxInv:       { fontSize:FONTS.sm, color:COLORS.textWhite, fontWeight:'600' },
-  trxSub:       { fontSize:FONTS.xs, color:COLORS.textDark },
+  trxInv:       { fontSize:FONTS.sm, fontWeight:'600' },
+  trxSub:       { fontSize:FONTS.xs },
   trxR:         { alignItems:'flex-end', gap:2 },
-  trxTotal:     { fontSize:FONTS.sm, color:COLORS.primary, fontWeight:'bold' },
-  trxMethod:    { fontSize:FONTS.xs, color:COLORS.textDark },
-  supCard:      { backgroundColor:COLORS.bgCard, borderRadius:RADIUS.lg, padding:SPACING.lg, marginBottom:SPACING.md, borderWidth:1, borderColor:COLORS.border },
+  trxTotal:     { fontSize:FONTS.sm, fontWeight:'bold' },
+  trxMethod:    { fontSize:FONTS.xs },
+  supCard:      { borderRadius:RADIUS.lg, padding:SPACING.lg, marginBottom:SPACING.md, borderWidth:1 },
   supHeader:    { flexDirection:'row', alignItems:'flex-start' },
-  supName:      { fontSize:FONTS.sm, fontWeight:'bold', color:COLORS.textWhite },
+  supName:      { fontSize:FONTS.sm, fontWeight:'bold' },
   supRev:       { fontSize:FONTS.md, fontWeight:'bold' },
 });

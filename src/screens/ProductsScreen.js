@@ -1,10 +1,6 @@
 /**
- * src/screens/ProductsScreen.js — Manajemen Produk (FIXED)
- * ─────────────────────────────────────────────────────────
- * FIX:
- *  - Kategori terpotong di atas → paddingTop ditambahkan di catContent
- *  - catBar juga perlu paddingTop agar chip tidak menempel di batas atas
- *  - key prop yang konsisten
+ * src/screens/ProductsScreen.js — v2.1
+ * FIX: Tema terang konsisten, tidak ada warna gelap tersisa
  */
 import React, { useState, useCallback } from 'react';
 import {
@@ -14,13 +10,16 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
-import { useAuth } from '../context/AuthContext';
+import { useAuth }  from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { productsAPI, categoriesAPI, getImageUrl } from '../services/api';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
+import { FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
 import { formatCurrency } from '../utils/helpers';
 
 export default function ProductsScreen({ navigation }) {
   const { isManager } = useAuth();
+  const { colors }    = useTheme();
+
   const [products,    setProducts]    = useState([]);
   const [categories,  setCategories]  = useState([{ id: 0, name: 'Semua' }]);
   const [filtered,    setFiltered]    = useState([]);
@@ -69,170 +68,192 @@ export default function ProductsScreen({ navigation }) {
     const lowStock = item.stock <= (item.min_stock || 5);
     const outStock = item.stock === 0;
     return (
-      <View style={styles.card}>
-        <View style={styles.imgBox}>
+      <View style={[s.card, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+        <View style={[s.imgBox, { backgroundColor: colors.bgSurface }]}>
           {imgUri
-            ? <Image source={{ uri: imgUri }} style={styles.img} />
-            : <View style={styles.imgPlaceholder}><Ionicons name="cube-outline" size={22} color={COLORS.textDark} /></View>
+            ? <Image source={{ uri: imgUri }} style={s.img} />
+            : <View style={[s.imgPlaceholder, { backgroundColor: colors.bgSurface }]}>
+                <Ionicons name="cube-outline" size={22} color={colors.textDark} />
+              </View>
           }
-          {outStock && <View style={[styles.stockBadge, { backgroundColor: COLORS.danger }]}><Text style={styles.badgeTxt}>Habis</Text></View>}
-          {!outStock && lowStock && <View style={[styles.stockBadge, { backgroundColor: COLORS.warning }]}><Text style={styles.badgeTxt}>Rendah</Text></View>}
+          {outStock && (
+            <View style={[s.stockBadge, { backgroundColor: colors.danger }]}>
+              <Text style={s.badgeTxt}>Habis</Text>
+            </View>
+          )}
+          {!outStock && lowStock && (
+            <View style={[s.stockBadge, { backgroundColor: colors.warning }]}>
+              <Text style={s.badgeTxt}>Rendah</Text>
+            </View>
+          )}
         </View>
-        <View style={styles.info}>
-          <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.sub}>{item.category_name || 'Umum'} • {item.unit || 'pcs'}</Text>
-          <Text style={styles.price}>{formatCurrency(item.selling_price)}</Text>
-          <View style={styles.infoRow}>
-            <Text style={[styles.stock, outStock && { color: COLORS.danger }, !outStock && lowStock && { color: COLORS.warning }]}>
+        <View style={s.info}>
+          <Text style={[s.name, { color: colors.textWhite }]} numberOfLines={1}>{item.name}</Text>
+          <Text style={[s.sub, { color: colors.textMuted }]}>{item.category_name || 'Umum'} • {item.unit || 'pcs'}</Text>
+          <Text style={[s.price, { color: colors.primary }]}>{formatCurrency(item.selling_price)}</Text>
+          <View style={s.infoRow}>
+            <Text style={[s.stock, { color: outStock ? colors.danger : lowStock ? colors.warning : colors.success }]}>
               Stok: {item.stock} {item.unit || 'pcs'}
             </Text>
-            {item.barcode ? <Text style={styles.barcode}>#{item.barcode}</Text> : null}
+            {item.barcode ? <Text style={[s.barcode, { color: colors.textDark }]}>#{item.barcode}</Text> : null}
           </View>
           {item.buying_price > 0 && (
-            <Text style={styles.hpp}>HPP: {formatCurrency(item.buying_price)}</Text>
+            <Text style={[s.hpp, { color: colors.textDark }]}>HPP: {formatCurrency(item.buying_price)}</Text>
           )}
         </View>
         {isManager && (
-          <View style={styles.actions}>
-            <TouchableOpacity style={styles.actBtn} onPress={() => navigation.navigate('ProductForm', { product: item })}>
-              <Ionicons name="create-outline" size={18} color={COLORS.info} />
+          <View style={s.actions}>
+            <TouchableOpacity
+              style={[s.actBtn, { backgroundColor: colors.bgSurface }]}
+              onPress={() => navigation.navigate('ProductForm', { product: item })}
+            >
+              <Ionicons name="create-outline" size={18} color={colors.info} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actBtn} onPress={() => handleDelete(item)}>
-              <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+            <TouchableOpacity
+              style={[s.actBtn, { backgroundColor: colors.bgSurface }]}
+              onPress={() => handleDelete(item)}
+            >
+              <Ionicons name="trash-outline" size={18} color={colors.danger} />
             </TouchableOpacity>
           </View>
         )}
       </View>
     );
-  }, [isManager, navigation, handleDelete]);
+  }, [isManager, navigation, handleDelete, colors]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Produk ({filtered.length})</Text>
+    <SafeAreaView style={[s.container, { backgroundColor: colors.bgDark }]} edges={['top']}>
+      {/* Header */}
+      <View style={[s.header, { backgroundColor: colors.bgMedium, borderBottomColor: colors.border, borderBottomWidth: 0.5 }]}>
+        <Text style={[s.headerTitle, { color: colors.textWhite }]}>Produk ({filtered.length})</Text>
         {isManager && (
-          <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('ProductForm', { product: null })}>
+          <TouchableOpacity
+            style={[s.addBtn, { backgroundColor: colors.primary }]}
+            onPress={() => navigation.navigate('ProductForm', { product: null })}
+          >
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
         )}
       </View>
 
-      <View style={styles.searchWrap}>
-        <Ionicons name="search-outline" size={16} color={COLORS.textMuted} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Cari nama atau barcode..."
-          placeholderTextColor={COLORS.textDark}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Ionicons name="close-circle" size={16} color={COLORS.textMuted} />
-          </TouchableOpacity>
-        )}
+      {/* Search */}
+      <View style={[s.searchWrap, { backgroundColor: colors.bgMedium }]}>
+        <View style={[s.searchBar, { backgroundColor: colors.bgInput, borderColor: colors.border }]}>
+          <Ionicons name="search-outline" size={16} color={colors.textMuted} />
+          <TextInput
+            style={[s.searchInput, { color: colors.textWhite }]}
+            placeholder="Cari nama atau barcode..."
+            placeholderTextColor={colors.textDark}
+            value={search}
+            onChangeText={setSearch}
+          />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
-      {/* FIX: paddingTop agar chip kategori tidak terpotong di atas */}
+      {/* Kategori */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={styles.catBar}
-        contentContainerStyle={styles.catContent}
+        style={[s.catBar, { backgroundColor: colors.bgMedium }]}
+        contentContainerStyle={[s.catContent, { borderBottomColor: colors.border }]}
       >
         {categories.map(cat => (
           <TouchableOpacity
             key={`pcat-${cat.id}`}
-            style={[styles.catChip, selectedCat === cat.id && styles.catChipActive]}
+            style={[
+              s.catChip,
+              { backgroundColor: selectedCat === cat.id ? colors.primary : colors.bgCard, borderColor: selectedCat === cat.id ? colors.primary : colors.border },
+            ]}
             onPress={() => setSelectedCat(cat.id)}
           >
-            <Text style={[styles.catText, selectedCat === cat.id && styles.catTextActive]}>{cat.name}</Text>
+            <Text style={[s.catText, { color: selectedCat === cat.id ? '#fff' : colors.textMuted }]}>
+              {cat.name}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {isLoading
-        ? <View style={styles.loading}><ActivityIndicator size="large" color={COLORS.primary} /></View>
-        : <FlatList
+      {isLoading ? (
+        <View style={s.loading}><ActivityIndicator size="large" color={colors.primary} /></View>
+      ) : (
+        <FlatList
           data={filtered}
           renderItem={renderItem}
           keyExtractor={item => `pr-${item.id}`}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[s.list, { paddingBottom: 60 }]}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Ionicons name="cube-outline" size={48} color={COLORS.textDark} />
-              <Text style={styles.emptyText}>
+            <View style={s.empty}>
+              <Ionicons name="cube-outline" size={48} color={colors.textDark} />
+              <Text style={[s.emptyText, { color: colors.textMuted }]}>
                 {search ? `Tidak ada produk "${search}"` : 'Tidak ada produk'}
               </Text>
             </View>
           }
         />
-      }
+      )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgDark },
+const s = StyleSheet.create({
+  container: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md,
-    backgroundColor: COLORS.bgMedium, borderBottomWidth: 1, borderBottomColor: COLORS.border,
   },
-  headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  addBtn: { width: 38, height: 38, borderRadius: 12, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: FONTS.lg, fontWeight: '700' },
+  addBtn: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
 
   searchWrap: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    marginHorizontal: SPACING.lg, marginVertical: SPACING.md,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md, height: 44, borderWidth: 1, borderColor: COLORS.border,
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
   },
-  searchInput: { flex: 1, color: COLORS.textWhite, fontSize: FONTS.md },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    borderRadius: RADIUS.md, paddingHorizontal: SPACING.md,
+    height: 44, borderWidth: 1,
+  },
+  searchInput: { flex: 1, fontSize: FONTS.md },
 
-  /* FIX kategori terpotong: paddingTop + paddingBottom */
-  catBar: { backgroundColor: COLORS.bgMedium, flexGrow: 0, flexShrink: 0 },
-  catContent: {
-    paddingHorizontal: SPACING.lg,
-    paddingTop: SPACING.sm,      // ← FIX: chip tidak terpotong di atas
-    paddingBottom: SPACING.md,
-    gap: SPACING.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
+  catBar:    { flexGrow: 0, flexShrink: 0 },
+  catContent:{
+    paddingHorizontal: SPACING.lg, paddingTop: SPACING.sm,
+    paddingBottom: SPACING.md, gap: SPACING.sm,
+    flexDirection: 'row', alignItems: 'center',
   },
   catChip: {
     paddingHorizontal: SPACING.md, paddingVertical: 7,
-    borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard,
-    borderWidth: 1, borderColor: COLORS.border,
+    borderRadius: RADIUS.full, borderWidth: 1,
   },
-  catChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  catText: { fontSize: FONTS.sm, color: COLORS.textMuted, fontWeight: '500' },
-  catTextActive: { color: '#fff', fontWeight: '700' },
+  catText: { fontSize: FONTS.sm, fontWeight: '500' },
 
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: SPACING.lg, paddingBottom: 60 },
+  list:    { padding: SPACING.lg },
   card: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    marginBottom: SPACING.md, borderWidth: 1, borderColor: COLORS.border,
-    overflow: 'hidden', minHeight: 90, ...SHADOW.sm,
+    borderRadius: RADIUS.lg, marginBottom: SPACING.md,
+    borderWidth: 1, overflow: 'hidden', minHeight: 90, ...SHADOW.sm,
   },
-  imgBox: { width: 100, height: 100, position: 'relative', backgroundColor: COLORS.bgMedium, flexShrink: 0 },
-  img: { width: '100%', height: '105%', resizeMode: 'cover' },
+  imgBox:      { width: 100, height: 100, position: 'relative', flexShrink: 0 },
+  img:         { width: '100%', height: '105%', resizeMode: 'cover' },
   imgPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  stockBadge: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center', paddingVertical: 2 },
-  badgeTxt: { color: '#fff', fontSize: 9, fontWeight: 'bold' },
-  info: { flex: 1, paddingVertical: SPACING.sm, paddingLeft: SPACING.sm, gap: 2 },
-  name: { fontSize: FONTS.md, color: COLORS.textWhite, fontWeight: '600' },
-  sub: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  price: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: 'bold' },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  stock: { fontSize: FONTS.xs, color: COLORS.success },
-  barcode: { fontSize: FONTS.xs, color: COLORS.textDark },
-  hpp: { fontSize: FONTS.xs, color: COLORS.textDark },
-  actions: { flexDirection: 'column', gap: SPACING.sm, padding: SPACING.md },
-  actBtn: { padding: 8, borderRadius: RADIUS.sm, backgroundColor: COLORS.bgMedium },
-  empty: { alignItems: 'center', paddingTop: 60, gap: SPACING.md },
-  emptyText: { color: COLORS.textMuted, fontSize: FONTS.md },
+  stockBadge:  { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center', paddingVertical: 2 },
+  badgeTxt:    { color: '#fff', fontSize: 9, fontWeight: 'bold' },
+  info:        { flex: 1, paddingVertical: SPACING.sm, paddingLeft: SPACING.sm, gap: 2 },
+  name:        { fontSize: FONTS.md, fontWeight: '600' },
+  sub:         { fontSize: FONTS.xs },
+  price:       { fontSize: FONTS.sm, fontWeight: 'bold' },
+  infoRow:     { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  stock:       { fontSize: FONTS.xs },
+  barcode:     { fontSize: FONTS.xs },
+  hpp:         { fontSize: FONTS.xs },
+  actions:     { flexDirection: 'column', gap: SPACING.sm, padding: SPACING.md },
+  actBtn:      { padding: 8, borderRadius: RADIUS.sm },
+  empty:       { alignItems: 'center', paddingTop: 60, gap: SPACING.md },
+  emptyText:   { fontSize: FONTS.md },
 });

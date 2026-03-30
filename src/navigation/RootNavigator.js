@@ -1,6 +1,8 @@
 /**
- * src/navigation/RootNavigator.js — v2
- * Custom tab bar dengan theme support + animasi
+ * src/navigation/RootNavigator.js — v2.1
+ * - Custom tab bar dengan tema konsisten dark/light
+ * - Tidak ada garis hitam di bawah
+ * - Ikon kasir diperbaiki
  */
 
 import React, { useRef, useEffect } from 'react';
@@ -9,44 +11,44 @@ import {
   ActivityIndicator, Animated,
 } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator }     from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
-import { useCart } from '../context/CartContext';
+import { useAuth }    from '../context/AuthContext';
+import { useTheme }   from '../context/ThemeContext';
+import { useCart }    from '../context/CartContext';
 import { FONTS, SPACING, RADIUS } from '../utils/theme';
 
 // Screens
-import RegisterScreen from '../screens/RegisterScreen';
-import LoginScreen from '../screens/LoginScreen';
-import DashboardScreen from '../screens/DashboardScreen';
-import PosScreen from '../screens/PosScreen';
-import CartScreen from '../screens/CartScreen';
-import CheckoutScreen from '../screens/CheckoutScreen';
-import ReceiptScreen from '../screens/ReceiptScreen';
-import ProductsScreen from '../screens/ProductsScreen';
-import TransactionsScreen from '../screens/TransactionsScreen';
-import ProfileScreen from '../screens/ProfileScreen';
-import ReportsScreen from '../screens/ReportsScreen';
-import AnalyticsScreen from '../screens/AnalyticsScreen';
-import CustomersScreen from '../screens/CustomersScreen';
-import SuppliersScreen from '../screens/SuppliersScreen';
-import StockInScreen from '../screens/StockInScreen';
+import RegisterScreen       from '../screens/RegisterScreen';
+import LoginScreen          from '../screens/LoginScreen';
+import DashboardScreen      from '../screens/DashboardScreen';
+import PosScreen            from '../screens/PosScreen';
+import CartScreen           from '../screens/CartScreen';
+import CheckoutScreen       from '../screens/CheckoutScreen';
+import ReceiptScreen        from '../screens/ReceiptScreen';
+import ProductsScreen       from '../screens/ProductsScreen';
+import TransactionsScreen   from '../screens/TransactionsScreen';
+import ProfileScreen        from '../screens/ProfileScreen';
+import ReportsScreen        from '../screens/ReportsScreen';
+import AnalyticsScreen      from '../screens/AnalyticsScreen';
+import CustomersScreen      from '../screens/CustomersScreen';
+import SuppliersScreen      from '../screens/SuppliersScreen';
+import StockInScreen        from '../screens/StockInScreen';
 import BarcodeScannerScreen from '../screens/BarcodeScannerScreen';
-import UsersScreen from '../screens/UsersScreen';
-import PromosScreen from '../screens/PromosScreen';
+import UsersScreen          from '../screens/UsersScreen';
+import PromosScreen         from '../screens/PromosScreen';
 import ReceiptSettingsScreen from '../screens/ReceiptSettingsScreen';
 import PrinterSettingsScreen from '../screens/PrinterSettingsScreen';
-import CategoriesScreen from '../screens/CategoriesScreen';
-import ProductFormScreen from '../screens/ProductFormScreen';
+import CategoriesScreen     from '../screens/CategoriesScreen';
+import ProductFormScreen    from '../screens/ProductFormScreen';
 import ServerSettingsScreen from '../screens/ServerSettingsScreen';
 
 const Stack = createStackNavigator();
 const Tab   = createBottomTabNavigator();
 
-// ── Loading Screen ────────────────────────────────────────────
+// ── Loading Screen ────────────────────────────────────────
 function LoadingScreen() {
   const { colors } = useTheme();
   return (
@@ -57,27 +59,23 @@ function LoadingScreen() {
   );
 }
 
-// ── Tab Item dengan Animasi ────────────────────────────────────
-const TabItem = ({ tab, focused, onPress, colors, isDark }) => {
-  const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.95)).current;
+// ── Tab Item dengan Animasi ───────────────────────────────
+const TabItem = ({ tab, focused, onPress, colors }) => {
+  const scaleAnim   = useRef(new Animated.Value(focused ? 1 : 0.95)).current;
   const opacityAnim = useRef(new Animated.Value(focused ? 1 : 0.6)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(scaleAnim, { toValue: focused ? 1 : 0.95, friction: 6, useNativeDriver: true }),
+      Animated.spring(scaleAnim,   { toValue: focused ? 1 : 0.95, friction: 6, useNativeDriver: true }),
       Animated.timing(opacityAnim, { toValue: focused ? 1 : 0.6, duration: 150, useNativeDriver: true }),
     ]).start();
   }, [focused]);
 
-  const iconName = focused ? tab.active : tab.icon;
+  const iconName  = focused ? tab.active : tab.icon;
   const iconColor = focused ? colors.primary : colors.tabInactive;
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={tabS.tab}
-      activeOpacity={0.7}
-    >
+    <TouchableOpacity onPress={onPress} style={tabS.tab} activeOpacity={0.7}>
       <Animated.View style={[tabS.inner, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}>
         {focused && (
           <View style={[tabS.activePill, { backgroundColor: colors.primary + '18' }]} />
@@ -94,14 +92,14 @@ const TabItem = ({ tab, focused, onPress, colors, isDark }) => {
   );
 };
 
-// ── POS Tab (center, elevated) ────────────────────────────────
+// ── POS Tab Center ────────────────────────────────────────
 const PosTabItem = ({ focused, onPress, totalItems, colors }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (focused) {
       Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 0.9, duration: 80, useNativeDriver: true }),
+        Animated.timing(scaleAnim, { toValue: 0.88, duration: 80, useNativeDriver: true }),
         Animated.spring(scaleAnim, { toValue: 1, friction: 4, useNativeDriver: true }),
       ]).start();
     }
@@ -113,11 +111,12 @@ const PosTabItem = ({ focused, onPress, totalItems, colors }) => {
         <View style={[
           tabS.posCircle,
           {
-            backgroundColor: focused ? '#5A52D5' : colors.primary,
+            backgroundColor: focused ? colors.primaryDark || '#5A52D5' : colors.primary,
             shadowColor: colors.primary,
           }
         ]}>
-          <MaterialCommunityIcons name="point-of-sale" size={26} color="#fff" />
+          {/* Ikon kasir: register / point-of-sale */}
+          <MaterialCommunityIcons name="cash-register" size={26} color="#fff" />
           {totalItems > 0 && (
             <View style={[tabS.badge, { backgroundColor: colors.danger }]}>
               <Text style={tabS.badgeTxt}>{totalItems > 9 ? '9+' : totalItems}</Text>
@@ -133,19 +132,19 @@ const PosTabItem = ({ focused, onPress, totalItems, colors }) => {
 };
 
 const tabS = StyleSheet.create({
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  tab:   { flex: 1, alignItems: 'center', justifyContent: 'center' },
   inner: { alignItems: 'center', gap: 3, paddingTop: 6, position: 'relative', paddingHorizontal: 12 },
   activePill: {
     position: 'absolute', top: 4, left: 0, right: 0,
     height: 32, borderRadius: RADIUS.md,
   },
   label: { fontSize: 10, fontWeight: '600', letterSpacing: 0.1 },
-  posOuter: { flex: 1, alignItems: 'center', marginTop: -20 },
+  posOuter:  { flex: 1, alignItems: 'center', marginTop: -20 },
   posCircle: {
     width: 58, height: 58, borderRadius: 20,
     alignItems: 'center', justifyContent: 'center',
-    elevation: 12, shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4, shadowRadius: 12,
+    elevation: 10, shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.35, shadowRadius: 10,
     borderWidth: 3, borderColor: 'transparent',
   },
   badge: {
@@ -157,24 +156,32 @@ const tabS = StyleSheet.create({
   badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
 });
 
-// ── Custom Tab Bar ────────────────────────────────────────────
+// ── Custom Tab Bar ────────────────────────────────────────
 function CustomTabBar({ state, navigation }) {
   const { colors, isDark } = useTheme();
-  const { totalItems } = useCart();
+  const { totalItems }     = useCart();
 
   const tabs = [
-    { name: 'Dashboard',    label: 'Beranda',    icon: 'home-outline',        active: 'home',           lib: 'Ion' },
-    { name: 'POS',          label: 'Kasir',      icon: 'point-of-sale',       active: 'point-of-sale',  lib: 'MCo' },
-    { name: 'Products',     label: 'Produk',     icon: 'cube-outline',        active: 'cube',           lib: 'Ion' },
-    { name: 'Transactions', label: 'Transaksi',  icon: 'receipt-outline',     active: 'receipt',        lib: 'Ion' },
-    { name: 'Profile',      label: 'Profil',     icon: 'person-outline',      active: 'person',         lib: 'Ion' },
+    { name: 'Dashboard',    label: 'Beranda',   icon: 'home-outline',    active: 'home',    lib: 'Ion' },
+    { name: 'POS',          label: 'Kasir',     icon: 'cash-register',   active: 'cash-register', lib: 'MCo' },
+    { name: 'Products',     label: 'Produk',    icon: 'cube-outline',    active: 'cube',    lib: 'Ion' },
+    { name: 'Transactions', label: 'Transaksi', icon: 'receipt-outline', active: 'receipt', lib: 'Ion' },
+    { name: 'Profile',      label: 'Profil',    icon: 'person-outline',  active: 'person',  lib: 'Ion' },
   ];
 
   return (
-    <View style={[tabBarS.outerWrap, { backgroundColor: colors.tabBg, borderTopColor: colors.border }]}>
+    <View style={[
+      tabBarS.outerWrap,
+      {
+        backgroundColor: colors.tabBg,
+        // Tidak ada borderTopColor gelap — gunakan warna border tema
+        borderTopColor: isDark ? colors.border : colors.border,
+        borderTopWidth: isDark ? 1 : 0.5,
+      }
+    ]}>
       <View style={tabBarS.bar}>
         {state.routes.map((route, idx) => {
-          const tab = tabs.find(t => t.name === route.name);
+          const tab     = tabs.find(t => t.name === route.name);
           if (!tab) return null;
           const focused = state.index === idx;
           const onPress = () => {
@@ -201,7 +208,6 @@ function CustomTabBar({ state, navigation }) {
               focused={focused}
               onPress={onPress}
               colors={colors}
-              isDark={isDark}
             />
           );
         })}
@@ -211,14 +217,16 @@ function CustomTabBar({ state, navigation }) {
 }
 
 const tabBarS = StyleSheet.create({
-  outerWrap: { borderTopWidth: 1 },
+  outerWrap: { borderTopWidth: 0.5 },
   bar: {
-    flexDirection: 'row', paddingBottom: Platform.OS === 'ios' ? 24 : 8,
-    paddingTop: 4, paddingHorizontal: SPACING.sm,
+    flexDirection: 'row',
+    paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+    paddingTop: 4,
+    paddingHorizontal: SPACING.sm,
   },
 });
 
-// ── Navigators ────────────────────────────────────────────────
+// ── Navigators ────────────────────────────────────────────
 function AuthNavigator() {
   const { colors } = useTheme();
   return (
@@ -229,8 +237,8 @@ function AuthNavigator() {
         animationEnabled: true,
       }}
     >
-      <Stack.Screen name="Login" component={LoginScreen} />
-      <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="Login"          component={LoginScreen} />
+      <Stack.Screen name="Register"       component={RegisterScreen} />
       <Stack.Screen name="ServerSettings" component={ServerSettingsScreen} />
     </Stack.Navigator>
   );
@@ -238,7 +246,10 @@ function AuthNavigator() {
 
 function MainTabNavigator() {
   return (
-    <Tab.Navigator tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
+    <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
+      screenOptions={{ headerShown: false }}
+    >
       <Tab.Screen name="Dashboard"    component={DashboardScreen} />
       <Tab.Screen name="POS"          component={PosScreen} />
       <Tab.Screen name="Products"     component={ProductsScreen} />
@@ -258,13 +269,9 @@ function AppNavigator() {
         gestureEnabled: true,
         cardStyleInterpolator: ({ current: { progress } }) => ({
           cardStyle: {
-            opacity: progress.interpolate({
-              inputRange: [0, 1], outputRange: [0, 1],
-            }),
+            opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
             transform: [{
-              translateX: progress.interpolate({
-                inputRange: [0, 1], outputRange: [20, 0],
-              }),
+              translateX: progress.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }),
             }],
           },
         }),
@@ -293,7 +300,7 @@ function AppNavigator() {
 
 export default function RootNavigator() {
   const { isLoggedIn, isLoading } = useAuth();
-  const { colors, isDark } = useTheme();
+  const { colors, isDark }        = useTheme();
 
   if (isLoading) return <LoadingScreen />;
 
@@ -302,11 +309,11 @@ export default function RootNavigator() {
       theme={{
         dark: isDark,
         colors: {
-          primary: colors.primary,
-          background: colors.bgDark,
-          card: colors.bgMedium,
-          text: colors.textWhite,
-          border: colors.border,
+          primary:      colors.primary,
+          background:   colors.bgDark,
+          card:         colors.bgMedium,
+          text:         colors.textWhite,
+          border:       colors.border,
           notification: colors.danger,
         },
       }}
