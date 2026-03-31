@@ -1,6 +1,7 @@
 /**
- * src/screens/SplashScreen.js — Layar Pembuka AprilTech POS
- * Ikon: Toko berwarna ungu (konsisten dengan assets/icon.png)
+ * src/screens/SplashScreen.js — KasirPOS v2.1
+ * Clean & Professional — Play Store Ready
+ * Brand: AprilTech | Icon: ungu konsisten
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -8,254 +9,518 @@ import {
   View, Text, StyleSheet, Animated, Dimensions, Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
 
-const BRAND_TEXT    = 'AprilTech';
-const TAGLINE_TEXT  = 'Developed by';
-const TYPING_DELAY  = 800;
-const TYPING_SPEED  = 80;
-const AFTER_TYPING  = 2000;
-const TOTAL_TYPING  = BRAND_TEXT.length * TYPING_SPEED;
-
-// Warna ungu brand — konsisten dengan icon.png
-const BRAND_PURPLE  = '#6C63FF';
-const BRAND_PURPLE2 = '#8B85FF';
+// ── Brand Colors ─────────────────────────────────────────────
+const PURPLE       = '#6C63FF';
+const PURPLE_DEEP  = '#4C46C0';
+const PURPLE_SOFT  = '#9D97FF';
+const PURPLE_GLOW  = 'rgba(108,99,255,0.18)';
+const BG_TOP       = '#0D0C1D';
+const BG_MID       = '#110F24';
+const BG_BOT       = '#14122B';
 
 export default function SplashScreen() {
-  const fadeMain   = useRef(new Animated.Value(0)).current;
-  const scaleIcon  = useRef(new Animated.Value(0.6)).current;
-  const fadeTitle  = useRef(new Animated.Value(0)).current;
-  const slideTitle = useRef(new Animated.Value(20)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const glowAnim   = useRef(new Animated.Value(0)).current;
+  // ── Animated values ──────────────────────────────────────
+  const bgOpacity    = useRef(new Animated.Value(0)).current;
+  const logoScale    = useRef(new Animated.Value(0.65)).current;
+  const logoOpacity  = useRef(new Animated.Value(0)).current;
+  const ringScale1   = useRef(new Animated.Value(0.5)).current;
+  const ringOpacity1 = useRef(new Animated.Value(0)).current;
+  const ringScale2   = useRef(new Animated.Value(0.4)).current;
+  const ringOpacity2 = useRef(new Animated.Value(0)).current;
+  const textOpacity  = useRef(new Animated.Value(0)).current;
+  const textSlide    = useRef(new Animated.Value(18)).current;
+  const tagOpacity   = useRef(new Animated.Value(0)).current;
+  const barWidth     = useRef(new Animated.Value(0)).current;
+  const footerOpacity= useRef(new Animated.Value(0)).current;
+  const dotAnim      = useRef(new Animated.Value(0)).current;
 
-  const [brandText, setBrandText] = useState('');
-  const [showCursor, setShowCursor] = useState(false);
-  const [cursorVisible, setCursorVisible] = useState(true);
+  // ── Typing effect ─────────────────────────────────────────
+  const [typed, setTyped]     = useState('');
+  const BRAND = 'AprilTech';
 
   useEffect(() => {
-    const cursorInterval = setInterval(() => {
-      setCursorVisible(v => !v);
-    }, 500);
+    // 1. Background fade in
+    Animated.timing(bgOpacity, {
+      toValue: 1, duration: 400, useNativeDriver: true,
+    }).start();
 
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(fadeMain, {
-          toValue: 1, duration: 600, useNativeDriver: true,
-        }),
-        Animated.spring(scaleIcon, {
-          toValue: 1, friction: 5, tension: 60, useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(fadeTitle, {
-          toValue: 1, duration: 400, useNativeDriver: true,
-        }),
-        Animated.timing(slideTitle, {
-          toValue: 0, duration: 400,
-          easing: Easing.out(Easing.cubic), useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-
+    // 2. Ring pulse — starts right away, looping
     Animated.loop(
       Animated.sequence([
-        Animated.timing(glowAnim, { toValue: 1, duration: 1500, useNativeDriver: false }),
-        Animated.timing(glowAnim, { toValue: 0.3, duration: 1500, useNativeDriver: false }),
+        Animated.parallel([
+          Animated.timing(ringScale1, { toValue: 1.6, duration: 1800, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(ringOpacity1, { toValue: 0, duration: 1800, useNativeDriver: true }),
+        ]),
+        Animated.parallel([
+          Animated.timing(ringScale1, { toValue: 0.5, duration: 0, useNativeDriver: true }),
+          Animated.timing(ringOpacity1, { toValue: 0.35, duration: 0, useNativeDriver: true }),
+        ]),
       ])
     ).start();
 
-    Animated.sequence([
-      Animated.timing(progressAnim, {
-        toValue: 0.65, duration: TYPING_DELAY + 400, useNativeDriver: false,
-      }),
-      Animated.timing(progressAnim, {
-        toValue: 0.9, duration: TOTAL_TYPING + 200, useNativeDriver: false,
-      }),
-      Animated.timing(progressAnim, {
-        toValue: 1, duration: AFTER_TYPING, useNativeDriver: false,
-      }),
-    ]).start();
+    // Offset second ring
+    setTimeout(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.parallel([
+            Animated.timing(ringScale2, { toValue: 1.8, duration: 2200, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            Animated.timing(ringOpacity2, { toValue: 0, duration: 2200, useNativeDriver: true }),
+          ]),
+          Animated.parallel([
+            Animated.timing(ringScale2, { toValue: 0.4, duration: 0, useNativeDriver: true }),
+            Animated.timing(ringOpacity2, { toValue: 0.2, duration: 0, useNativeDriver: true }),
+          ]),
+        ])
+      ).start();
+    }, 600);
 
-    const typingTimer = setTimeout(() => {
-      setShowCursor(true);
+    // 3. Logo springs in
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.spring(logoScale, {
+          toValue: 1, friction: 5.5, tension: 70, useNativeDriver: true,
+        }),
+        Animated.timing(logoOpacity, {
+          toValue: 1, duration: 350, useNativeDriver: true,
+        }),
+      ]).start();
+    }, 200);
+
+    // 4. App name slides up
+    setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(textOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.timing(textSlide, { toValue: 0, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      ]).start();
+    }, 550);
+
+    // 5. Tagline fades in
+    setTimeout(() => {
+      Animated.timing(tagOpacity, { toValue: 1, duration: 350, useNativeDriver: true }).start();
+    }, 850);
+
+    // 6. Progress bar
+    setTimeout(() => {
+      Animated.timing(barWidth, {
+        toValue: 1, duration: 2600, easing: Easing.inOut(Easing.quad), useNativeDriver: false,
+      }).start();
+    }, 900);
+
+    // 7. Footer (watermark) fade
+    setTimeout(() => {
+      Animated.timing(footerOpacity, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+    }, 1000);
+
+    // 8. Dot pulse for "Memuat..."
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(dotAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(dotAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+      ])
+    ).start();
+
+    // 9. Typing "AprilTech"
+    setTimeout(() => {
       let i = 0;
-      const interval = setInterval(() => {
+      const iv = setInterval(() => {
         i++;
-        setBrandText(BRAND_TEXT.slice(0, i));
-        if (i >= BRAND_TEXT.length) {
-          clearInterval(interval);
-          setTimeout(() => setShowCursor(false), AFTER_TYPING);
-        }
-      }, TYPING_SPEED);
-    }, TYPING_DELAY);
-
-    return () => {
-      clearInterval(cursorInterval);
-      clearTimeout(typingTimer);
-    };
+        setTyped(BRAND.slice(0, i));
+        if (i >= BRAND.length) clearInterval(iv);
+      }, 75);
+    }, 1000);
   }, []);
 
-  const progressWidth = progressAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
+  const progressInterpolate = barWidth.interpolate({
+    inputRange: [0, 1], outputRange: ['0%', '100%'],
   });
 
-  const glowOpacity = glowAnim.interpolate({
-    inputRange: [0.3, 1],
-    outputRange: [0.3, 0.8],
+  const dotOpacity = dotAnim.interpolate({
+    inputRange: [0, 1], outputRange: [0.3, 1],
   });
 
   return (
-    <LinearGradient
-      colors={['#080812', '#0F0F1E', '#14142A']}
-      style={styles.container}
-    >
-      {/* Background orbs */}
-      <Animated.View style={[styles.orb1, { opacity: glowOpacity }]} />
-      <Animated.View style={[styles.orb2, { opacity: glowOpacity }]} />
-
-      {/* Main content */}
-      <Animated.View style={[styles.content, { opacity: fadeMain }]}>
-
-        {/* ── IKON TOKO UNGU — konsisten dengan icon.png ── */}
-        <Animated.View style={[styles.iconWrap, { transform: [{ scale: scaleIcon }] }]}>
-          <LinearGradient
-            colors={[BRAND_PURPLE, BRAND_PURPLE2]}
-            style={styles.iconGradient}
-          >
-            {/* Storefront icon — konsisten dengan tampilan toko di icon.png */}
-            <Ionicons name="storefront" size={52} color="#fff" />
-          </LinearGradient>
-          <Animated.View style={[styles.iconGlow, { opacity: glowOpacity }]} />
-        </Animated.View>
-
-        {/* App title */}
-        <Animated.View style={[
-          styles.titleWrap,
-          { opacity: fadeTitle, transform: [{ translateY: slideTitle }] }
-        ]}>
-          <Text style={styles.appName}>KasirPOS</Text>
-          <Text style={styles.appTagline}>Sistem Kasir Digital Profesional</Text>
-          <View style={styles.versionBadge}>
-            <Text style={styles.versionText}>v2.0</Text>
-          </View>
-        </Animated.View>
-
-        {/* Watermark / Developer branding */}
-        <View style={styles.watermarkSection}>
-          <View style={styles.watermarkLine} />
-          <View style={styles.watermarkContent}>
-            <Text style={styles.developedBy}>{TAGLINE_TEXT}</Text>
-            <View style={styles.brandRow}>
-              <Text style={styles.brandLetters}>
-                {brandText}
-                {showCursor && (
-                  <Text style={[styles.cursor, { opacity: cursorVisible ? 1 : 0 }]}>|</Text>
-                )}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.watermarkLine} />
-        </View>
+    <View style={s.root}>
+      {/* Deep gradient background */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: bgOpacity }]}>
+        <LinearGradient
+          colors={[BG_TOP, BG_MID, BG_BOT]}
+          style={StyleSheet.absoluteFill}
+        />
       </Animated.View>
 
-      {/* Footer: loading */}
-      <Animated.View style={[styles.footer, { opacity: fadeMain }]}>
-        <Text style={styles.loadingLabel}>Memuat aplikasi...</Text>
-        <View style={styles.progressTrack}>
-          <Animated.View style={[styles.progressFill, { width: progressWidth }]}>
+      {/* Subtle grid pattern overlay */}
+      <View style={s.gridOverlay} pointerEvents="none" />
+
+      {/* ── Center content ───────────────────────────────── */}
+      <View style={s.center}>
+
+        {/* Ring pulse behind logo */}
+        <View style={s.ringWrap}>
+          <Animated.View style={[
+            s.ring,
+            { transform: [{ scale: ringScale1 }], opacity: ringOpacity1 },
+          ]} />
+          <Animated.View style={[
+            s.ring, s.ringLarge,
+            { transform: [{ scale: ringScale2 }], opacity: ringOpacity2 },
+          ]} />
+
+          {/* Logo container */}
+          <Animated.View style={[
+            s.logoWrap,
+            { opacity: logoOpacity, transform: [{ scale: logoScale }] },
+          ]}>
+            {/* Outer glow layer */}
+            <View style={s.logoGlow} />
+            {/* Icon gradient card */}
             <LinearGradient
-              colors={[BRAND_PURPLE, BRAND_PURPLE2]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-              style={StyleSheet.absoluteFill}
-            />
+              colors={[PURPLE, PURPLE_DEEP]}
+              start={{ x: 0.15, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={s.logoCard}
+            >
+              {/* Inner highlight */}
+              <View style={s.logoHighlight} />
+              <MaterialCommunityIcons
+                name="point-of-sale"
+                size={46}
+                color="#FFFFFF"
+              />
+            </LinearGradient>
           </Animated.View>
         </View>
-      </Animated.View>
-    </LinearGradient>
+
+        {/* App name */}
+        <Animated.View style={[
+          s.nameWrap,
+          { opacity: textOpacity, transform: [{ translateY: textSlide }] },
+        ]}>
+          <Text style={s.appName}>KasirPOS</Text>
+          {/* Small version badge */}
+          <View style={s.vBadge}>
+            <Text style={s.vText}>v2.1</Text>
+          </View>
+        </Animated.View>
+
+        {/* Tagline */}
+        <Animated.Text style={[s.tagline, { opacity: tagOpacity }]}>
+          Sistem Kasir Digital Profesional
+        </Animated.Text>
+
+        {/* Feature pills */}
+        <Animated.View style={[s.pillRow, { opacity: tagOpacity }]}>
+          {['Offline Ready', 'Multi Kasir', 'Laporan Real-time'].map((label) => (
+            <View key={label} style={s.pill}>
+              <Text style={s.pillText}>{label}</Text>
+            </View>
+          ))}
+        </Animated.View>
+      </View>
+
+      {/* ── Bottom area ──────────────────────────────────── */}
+      <View style={s.bottom}>
+        {/* Loading label */}
+        <View style={s.loadRow}>
+          <Animated.View style={[s.dot, { opacity: dotOpacity }]} />
+          <Text style={s.loadText}>Memuat aplikasi</Text>
+          <Animated.Text style={[s.loadDots, { opacity: dotOpacity }]}>...</Animated.Text>
+        </View>
+
+        {/* Progress bar */}
+        <View style={s.barTrack}>
+          <Animated.View style={[s.barFill, { width: progressInterpolate }]}>
+            <LinearGradient
+              colors={[PURPLE_SOFT, PURPLE, PURPLE_DEEP]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+            {/* Shimmer overlay */}
+            <View style={s.barShimmer} />
+          </Animated.View>
+        </View>
+
+        {/* Watermark — AprilTech */}
+        <Animated.View style={[s.watermark, { opacity: footerOpacity }]}>
+          <View style={s.wLine} />
+          <View style={s.wContent}>
+            <Text style={s.wBy}>Developed by</Text>
+            <View style={s.wBrandRow}>
+              {/* A icon */}
+              <LinearGradient
+                colors={[PURPLE, PURPLE_DEEP]}
+                style={s.wIcon}
+              >
+                <Text style={s.wIconText}>A</Text>
+              </LinearGradient>
+              <Text style={s.wBrand}>{typed || ' '}</Text>
+              {typed.length < BRAND.length && (
+                <View style={s.cursor} />
+              )}
+            </View>
+          </View>
+          <View style={s.wLine} />
+        </Animated.View>
+      </View>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
-  orb1: {
-    position: 'absolute', top: height * 0.1, left: -80,
-    width: 300, height: 300, borderRadius: 150,
-    backgroundColor: BRAND_PURPLE, opacity: 0.08,
-  },
-  orb2: {
-    position: 'absolute', bottom: height * 0.15, right: -100,
-    width: 250, height: 250, borderRadius: 125,
-    backgroundColor: BRAND_PURPLE2, opacity: 0.06,
+const s = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: BG_TOP,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
-  content: { alignItems: 'center', gap: 20, paddingHorizontal: 40 },
-
-  // Icon — toko ungu besar
-  iconWrap: { position: 'relative', marginBottom: 8 },
-  iconGradient: {
-    width: 120, height: 120, borderRadius: 36,
-    alignItems: 'center', justifyContent: 'center',
-    // Shadow effect
-    elevation: 16,
-    shadowColor: BRAND_PURPLE,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.45,
-    shadowRadius: 16,
-  },
-  iconGlow: {
-    position: 'absolute', top: -15, left: -15, right: -15, bottom: -15,
-    borderRadius: 50, backgroundColor: BRAND_PURPLE,
-    zIndex: -1,
+  // Subtle dot-grid overlay for depth
+  gridOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.03,
+    backgroundColor: 'transparent',
   },
 
-  // Title
-  titleWrap: { alignItems: 'center', gap: 6 },
+  // ── Center ───────────────────────────────────────────────
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+  },
+
+  // Rings
+  ringWrap: {
+    width: 160,
+    height: 160,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 32,
+  },
+  ring: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    borderWidth: 1.5,
+    borderColor: PURPLE,
+  },
+  ringLarge: {
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+  },
+
+  // Logo
+  logoWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoGlow: {
+    position: 'absolute',
+    width: 110,
+    height: 110,
+    borderRadius: 30,
+    backgroundColor: PURPLE_GLOW,
+    transform: [{ scale: 1.3 }],
+  },
+  logoCard: {
+    width: 100,
+    height: 100,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // subtle inner border
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    // shadow
+    shadowColor: PURPLE,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.55,
+    shadowRadius: 22,
+    elevation: 18,
+    overflow: 'hidden',
+  },
+  logoHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 48,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+
+  // App name
+  nameWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+  },
   appName: {
-    fontSize: 36, fontWeight: '900', color: '#FFFFFF',
-    letterSpacing: -1,
+    fontSize: 34,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: -0.8,
   },
-  appTagline: { fontSize: 14, color: '#6B6B8A', fontWeight: '500' },
-  versionBadge: {
-    backgroundColor: BRAND_PURPLE + '22', borderRadius: 20,
-    paddingHorizontal: 12, paddingVertical: 3,
-    borderWidth: 1, borderColor: BRAND_PURPLE + '44', marginTop: 4,
+  vBadge: {
+    backgroundColor: 'rgba(108,99,255,0.25)',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(108,99,255,0.4)',
   },
-  versionText: { color: BRAND_PURPLE2, fontSize: 11, fontWeight: '700' },
+  vText: {
+    fontSize: 10,
+    color: PURPLE_SOFT,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+
+  tagline: {
+    fontSize: 13,
+    color: 'rgba(200,200,230,0.55)',
+    fontWeight: '400',
+    letterSpacing: 0.3,
+    marginBottom: 20,
+  },
+
+  // Feature pills
+  pillRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
+  pill: {
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(108,99,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(108,99,255,0.22)',
+  },
+  pillText: {
+    fontSize: 10,
+    color: PURPLE_SOFT,
+    fontWeight: '600',
+    letterSpacing: 0.2,
+  },
+
+  // ── Bottom ───────────────────────────────────────────────
+  bottom: {
+    width: '100%',
+    paddingHorizontal: 48,
+    paddingBottom: 48,
+    alignItems: 'center',
+    gap: 14,
+  },
+
+  loadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: PURPLE_SOFT,
+  },
+  loadText: {
+    fontSize: 11,
+    color: 'rgba(160,160,200,0.5)',
+    fontWeight: '500',
+    letterSpacing: 0.5,
+  },
+  loadDots: {
+    fontSize: 11,
+    color: PURPLE_SOFT,
+    fontWeight: '700',
+  },
+
+  // Progress bar
+  barTrack: {
+    width: '100%',
+    height: 3,
+    backgroundColor: 'rgba(108,99,255,0.15)',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  barShimmer: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    right: 0,
+    width: 30,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 999,
+  },
 
   // Watermark
-  watermarkSection: { alignItems: 'center', gap: 10, marginTop: 16, width: '100%' },
-  watermarkLine: { height: 1, width: '60%', backgroundColor: BRAND_PURPLE + '33' },
-  watermarkContent: { alignItems: 'center', gap: 4 },
-  developedBy: {
-    fontSize: 11, color: '#4A4A6A', fontWeight: '500',
-    letterSpacing: 2, textTransform: 'uppercase',
+  watermark: {
+    marginTop: 4,
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
   },
-  brandRow: {
-    flexDirection: 'row', alignItems: 'center',
-    minHeight: 32,
+  wLine: {
+    width: '40%',
+    height: 1,
+    backgroundColor: 'rgba(108,99,255,0.18)',
   },
-  brandLetters: {
-    fontSize: 22, fontWeight: '900', color: BRAND_PURPLE,
-    letterSpacing: 1,
+  wContent: {
+    alignItems: 'center',
+    gap: 5,
+  },
+  wBy: {
+    fontSize: 9,
+    color: 'rgba(130,130,160,0.5)',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    fontWeight: '500',
+  },
+  wBrandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  wIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wIconText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#fff',
+  },
+  wBrand: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: PURPLE_SOFT,
+    letterSpacing: 0.8,
+    minWidth: 70,
   },
   cursor: {
-    fontSize: 22, color: BRAND_PURPLE2, fontWeight: '300',
+    width: 2,
+    height: 14,
+    backgroundColor: PURPLE_SOFT,
+    borderRadius: 1,
+    marginLeft: 1,
   },
-
-  // Footer
-  footer: {
-    position: 'absolute', bottom: 60,
-    alignItems: 'center', gap: 10, width: '100%', paddingHorizontal: 60,
-  },
-  loadingLabel: { fontSize: 12, color: '#4A4A6A', fontWeight: '500', letterSpacing: 0.5 },
-  progressTrack: {
-    width: '100%', height: 3, backgroundColor: '#1A1A2E',
-    borderRadius: 10, overflow: 'hidden',
-  },
-  progressFill: { height: '100%', borderRadius: 10, overflow: 'hidden' },
 });

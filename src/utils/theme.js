@@ -1,6 +1,7 @@
 /**
- * src/utils/theme.js — Design System Dark/Light Mode v2.1
- * AprilTech POS Mobile — Full konsistensi tema terang & gelap
+ * src/utils/theme.js — Design System v2.2
+ * FIXED: Light mode warna lebih tepat & konsisten di seluruh app
+ * AprilTech POS Mobile
  */
 
 export const DARK_COLORS = {
@@ -48,7 +49,7 @@ export const DARK_COLORS = {
 export const LIGHT_COLORS = {
   primary:      '#6C63FF',
   primaryDark:  '#5A52D5',
-  primaryLight: '#8B85FF',
+  primaryLight: '#7B75FF',
   accent:       '#FF6584',
   accentGold:   '#F59E0B',
 
@@ -57,41 +58,41 @@ export const LIGHT_COLORS = {
   danger:   '#DC2626',
   info:     '#2563EB',
 
-  // ---- BACKGROUNDS: semua putih bersih ----
-  bgDark:      '#F5F5FA',   // background layar utama
-  bgMedium:    '#FFFFFF',   // header, tab bar
-  bgCard:      '#FFFFFF',   // kartu/section
-  bgCardHover: '#F8F8FF',
-  bgInput:     '#F5F5FC',
+  // ─── Backgrounds — putih bersih ───────────────────────
+  bgDark:      '#F3F3FA',   // layar utama (off-white lembut)
+  bgMedium:    '#FFFFFF',   // header, tab bar, section header
+  bgCard:      '#FFFFFF',   // kartu, list item
+  bgCardHover: '#F7F7FF',
+  bgInput:     '#F5F5FC',   // input field
   bgModal:     '#FFFFFF',
   bgElevated:  '#FAFAFA',
-  bgSurface:   '#F0F0F8',
+  bgSurface:   '#EEEEF8',   // icon background, chips
 
-  // ---- TEXT ----
-  textWhite: '#1A1A2E',   // teks utama di light mode
-  textLight: '#2D2D4A',
-  textMuted: '#6B6B8A',
-  textDark:  '#9999B8',
-  textHint:  '#BBBBCC',
+  // ─── Text — kontras tinggi di light mode ─────────────
+  textWhite: '#1A1826',   // teks utama (hampir hitam)
+  textLight: '#2D2B44',   // teks sekunder
+  textMuted: '#5E5C7A',   // label, placeholder
+  textDark:  '#9896B0',   // teks tersier, hint
+  textHint:  '#C2C0D4',
 
-  // ---- BORDERS: sangat tipis & subtle ----
-  border:      '#EBEBF5',   // border tipis — tidak terlihat sebagai garis tebal
-  borderLight: '#E0E0EE',
-  divider:     '#F2F2F8',   // divider antar item — hampir tidak terlihat
+  // ─── Borders — tipis & halus ──────────────────────────
+  border:      '#E4E3F0',   // border kartu & input
+  borderLight: '#ECEAF8',
+  divider:     '#F0EFF8',   // pemisah antar item
   borderFocus: '#6C63FF',
 
-  shimmer1: '#F0F0F8',
-  shimmer2: '#E8E8F8',
-  overlay:      'rgba(0,0,0,0.4)',
-  overlayLight: 'rgba(0,0,0,0.2)',
+  shimmer1: '#EEEEF8',
+  shimmer2: '#E4E3F2',
+  overlay:      'rgba(0,0,0,0.35)',
+  overlayLight: 'rgba(0,0,0,0.15)',
 
-  // ---- TAB BAR ----
+  // ─── Tab Bar ──────────────────────────────────────────
   tabBg:       '#FFFFFF',
   tabActive:   '#6C63FF',
-  tabInactive: '#9999B8',
+  tabInactive: '#9896B0',
 };
 
-// Default export untuk backward compat
+// Default untuk backward compatibility (screen yang belum di-refactor)
 export const COLORS = DARK_COLORS;
 
 export const FONTS = {
@@ -151,6 +152,13 @@ export const SHADOW = {
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.16,
     shadowRadius: 20,
+  },
+  light: {
+    elevation: 2,
+    shadowColor: '#00000014',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
   },
   colored: (color = '#6C63FF') => ({
     elevation: 8,

@@ -1,10 +1,9 @@
 /**
- * src/screens/DashboardScreen.js — Beranda v2.1
- * FIX:
- * - Role label konsisten (Owner/Kasir)
- * - Ikon kasir diperbaiki ke cash-register
- * - Tema terang konsisten di seluruh komponen
- * - Tidak ada garis hitam di bawah
+ * src/screens/DashboardScreen.js — v2.2
+ * FIXED: Full light mode support
+ * - Header gradient dinamis
+ * - Quick action card responsif terhadap tema
+ * - Stok rendah & produk terlaris konsisten
  */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -29,9 +28,16 @@ import {
 } from '../components/UIComponents';
 
 // ── Quick Action Button ───────────────────────────────────
-const QuickActionBtn = ({ icon, label, color, onPress, badge, colors, isMci = false }) => (
+const QuickActionBtn = ({ icon, label, color, onPress, badge, colors, isDark, isMci = false }) => (
   <TouchableOpacity style={qaS.wrap} onPress={onPress} activeOpacity={0.8}>
-    <View style={[qaS.iconBox, { backgroundColor: color + '18', borderColor: color + '25', borderWidth: 1 }]}>
+    <View style={[
+      qaS.iconBox,
+      {
+        backgroundColor: color + (isDark ? '18' : '15'),
+        borderColor: color + (isDark ? '25' : '20'),
+        borderWidth: 1,
+      }
+    ]}>
       {isMci
         ? <MaterialCommunityIcons name={icon} size={22} color={color} />
         : <Ionicons name={icon} size={22} color={color} />
@@ -63,9 +69,15 @@ const LowStockItem = ({ item, colors }) => (
     </View>
     <View style={[
       lsS.badge,
-      { backgroundColor: item.stock === 0 ? colors.danger + '20' : colors.warning + '20' }
+      {
+        backgroundColor: item.stock === 0
+          ? colors.danger + '20'
+          : colors.warning + '20',
+      }
     ]}>
-      <Text style={[lsS.badgeText, { color: item.stock === 0 ? colors.danger : colors.warning }]}>
+      <Text style={[lsS.badgeText, {
+        color: item.stock === 0 ? colors.danger : colors.warning,
+      }]}>
         {item.stock === 0 ? 'Habis' : `Sisa ${item.stock}`}
       </Text>
     </View>
@@ -132,8 +144,12 @@ export default function DashboardScreen({ navigation }) {
   const lowStock = stats?.low_stock  || [];
   const topProds = stats?.top_products || [];
 
-  // ── Role label konsisten ─────────────────────────────────
   const roleLabel = getRoleLabel ? getRoleLabel() : (isOwner ? 'Owner' : 'Kasir');
+
+  // Header gradient: gelap untuk dark, putih untuk light
+  const headerGrad = isDark
+    ? ['#12121F', '#1A1A2E']
+    : ['#FFFFFF', '#F8F8FF'];
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bgDark }}>
@@ -152,10 +168,7 @@ export default function DashboardScreen({ navigation }) {
         }
       >
         {/* Header */}
-        <LinearGradient
-          colors={isDark ? ['#12121F', '#1A1A2E'] : ['#FFFFFF', '#F8F8FF']}
-          style={styles.header}
-        >
+        <LinearGradient colors={headerGrad} style={styles.header}>
           <View>
             <Text style={[styles.greeting, { color: colors.textWhite }]}>
               Halo, {user?.name?.split(' ')[0] || 'Kasir'} 👋
@@ -168,13 +181,18 @@ export default function DashboardScreen({ navigation }) {
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {fromCache && (
-              <View style={[styles.cacheBadge, { backgroundColor: colors.warning + '20', borderColor: colors.warning + '40' }]}>
+              <View style={[styles.cacheBadge, {
+                backgroundColor: colors.warning + '20',
+                borderColor: colors.warning + '40',
+              }]}>
                 <Ionicons name="cloud-offline-outline" size={11} color={colors.warning} />
                 <Text style={[styles.cacheTxt, { color: colors.warning }]}>Cache</Text>
               </View>
             )}
-            {/* Role badge konsisten */}
-            <View style={[styles.roleBadge, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}>
+            <View style={[styles.roleBadge, {
+              backgroundColor: colors.primary + '20',
+              borderColor: colors.primary + '40',
+            }]}>
               <Text style={[styles.roleTxt, { color: colors.primary }]}>{roleLabel.toUpperCase()}</Text>
             </View>
           </View>
@@ -244,15 +262,29 @@ export default function DashboardScreen({ navigation }) {
           {/* Aksi Cepat */}
           <View style={[styles.section, { paddingHorizontal: SPACING.lg }]}>
             <SectionTitle title="⚡ Aksi Cepat" />
-            <View style={[styles.qaCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <View style={[
+              styles.qaCard,
+              {
+                backgroundColor: colors.bgCard,
+                borderColor: colors.border,
+                borderWidth: isDark ? 1 : 0.5,
+                ...(isDark ? {} : {
+                  shadowColor: '#00000010',
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 1,
+                  shadowRadius: 6,
+                  elevation: 3,
+                }),
+              }
+            ]}>
               <View style={styles.qaRow}>
-                {/* Ikon kasir diperbaiki ke cash-register */}
                 <QuickActionBtn
                   icon="cash-register"
                   label="Kasir"
                   color={colors.primary}
                   onPress={() => navigation.navigate('POS')}
                   colors={colors}
+                  isDark={isDark}
                   isMci
                 />
                 <QuickActionBtn
@@ -261,6 +293,7 @@ export default function DashboardScreen({ navigation }) {
                   color={colors.success}
                   onPress={() => navigation.navigate('Transactions')}
                   colors={colors}
+                  isDark={isDark}
                 />
                 <QuickActionBtn
                   icon="cube-outline"
@@ -268,6 +301,7 @@ export default function DashboardScreen({ navigation }) {
                   color={colors.info}
                   onPress={() => navigation.navigate('Products')}
                   colors={colors}
+                  isDark={isDark}
                 />
                 {isOwner && (
                   <QuickActionBtn
@@ -276,17 +310,23 @@ export default function DashboardScreen({ navigation }) {
                     color="#9C27B0"
                     onPress={() => navigation.navigate('Reports')}
                     colors={colors}
+                    isDark={isDark}
                   />
                 )}
               </View>
               {isOwner && (
-                <View style={[styles.qaRow, { borderTopWidth: 1, borderTopColor: colors.divider, paddingTop: SPACING.md }]}>
+                <View style={[styles.qaRow, {
+                  borderTopWidth: isDark ? 1 : 0.5,
+                  borderTopColor: colors.divider,
+                  paddingTop: SPACING.md,
+                }]}>
                   <QuickActionBtn
                     icon="analytics-outline"
                     label="Analytics"
                     color={colors.warning}
                     onPress={() => navigation.navigate('Analytics')}
                     colors={colors}
+                    isDark={isDark}
                   />
                   <QuickActionBtn
                     icon="people-outline"
@@ -294,6 +334,7 @@ export default function DashboardScreen({ navigation }) {
                     color="#E91E63"
                     onPress={() => navigation.navigate('Users')}
                     colors={colors}
+                    isDark={isDark}
                   />
                   <QuickActionBtn
                     icon="archive-outline"
@@ -301,6 +342,7 @@ export default function DashboardScreen({ navigation }) {
                     color={colors.success}
                     onPress={() => navigation.navigate('StockIn')}
                     colors={colors}
+                    isDark={isDark}
                   />
                   <QuickActionBtn
                     icon="pricetag-outline"
@@ -308,6 +350,7 @@ export default function DashboardScreen({ navigation }) {
                     color="#FF6584"
                     onPress={() => navigation.navigate('Promos')}
                     colors={colors}
+                    isDark={isDark}
                   />
                 </View>
               )}
@@ -321,7 +364,14 @@ export default function DashboardScreen({ navigation }) {
                 title={`⚠️ Stok Rendah (${lowStock.length})`}
                 action={() => navigation.navigate('Products')}
               />
-              <View style={[styles.listCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              <View style={[
+                styles.listCard,
+                {
+                  backgroundColor: colors.bgCard,
+                  borderColor: colors.border,
+                  borderWidth: isDark ? 1 : 0.5,
+                }
+              ]}>
                 {lowStock.slice(0, 5).map((item, idx) => (
                   <LowStockItem key={item.id || idx} item={item} colors={colors} />
                 ))}
@@ -333,14 +383,25 @@ export default function DashboardScreen({ navigation }) {
           {topProds.length > 0 && (
             <View style={[styles.section, { paddingHorizontal: SPACING.lg }]}>
               <SectionTitle title="🏆 Produk Terlaris" action={() => navigation.navigate('Analytics')} />
-              <View style={[styles.listCard, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+              <View style={[
+                styles.listCard,
+                {
+                  backgroundColor: colors.bgCard,
+                  borderColor: colors.border,
+                  borderWidth: isDark ? 1 : 0.5,
+                }
+              ]}>
                 {topProds.slice(0, 5).map((item, idx) => (
                   <View key={item.id || idx} style={[styles.topItem, { borderBottomColor: colors.divider }]}>
                     <View style={[styles.rankBadge, {
-                      backgroundColor: idx < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][idx] + '25' : colors.bgSurface,
+                      backgroundColor: idx < 3
+                        ? ['#FFD700','#C0C0C0','#CD7F32'][idx] + '25'
+                        : colors.bgSurface,
                     }]}>
                       <Text style={[styles.rankTxt, {
-                        color: idx < 3 ? ['#FFD700','#C0C0C0','#CD7F32'][idx] : colors.textDark,
+                        color: idx < 3
+                          ? ['#D4A017','#999999','#A0522D'][idx]
+                          : colors.textDark,
                       }]}>{idx + 1}</Text>
                     </View>
                     <View style={{ flex: 1, gap: 2 }}>
@@ -401,10 +462,13 @@ const styles = StyleSheet.create({
   section:  { marginTop: SPACING.xl },
   statsRow: { flexDirection: 'row', gap: SPACING.sm },
 
-  qaCard: { borderRadius: RADIUS.xl, borderWidth: 1, padding: SPACING.lg, gap: SPACING.md },
+  qaCard: { borderRadius: RADIUS.xl, padding: SPACING.lg, gap: SPACING.md },
   qaRow:  { flexDirection: 'row', gap: SPACING.md },
 
-  listCard: { borderRadius: RADIUS.xl, borderWidth: 1, paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
+  listCard: {
+    borderRadius: RADIUS.xl,
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
+  },
 
   topItem: {
     flexDirection: 'row', alignItems: 'center', gap: SPACING.md,

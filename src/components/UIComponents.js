@@ -1,6 +1,7 @@
 /**
- * src/components/UIComponents.js v2.1
- * Semua komponen menggunakan useTheme() untuk konsistensi dark/light
+ * src/components/UIComponents.js v2.2
+ * FIXED: Full light mode support di semua komponen
+ * Semua komponen menggunakan useTheme() secara konsisten
  */
 
 import React, { useRef, useEffect } from 'react';
@@ -20,7 +21,12 @@ export const Chip = ({ label, color, small, onPress, icon }) => {
   return (
     <Component
       onPress={onPress}
-      style={[chipS.wrap, { backgroundColor: c + '22', borderColor: c + '44', paddingHorizontal: small ? 8 : 12, paddingVertical: small ? 3 : 6 }]}
+      style={[chipS.wrap, {
+        backgroundColor: c + '20',
+        borderColor: c + '50',
+        paddingHorizontal: small ? 8 : 12,
+        paddingVertical: small ? 3 : 6,
+      }]}
     >
       {icon && <Ionicons name={icon} size={small ? 10 : 12} color={c} style={{ marginRight: 3 }} />}
       <Text style={[chipS.text, { color: c, fontSize: small ? 10 : 12 }]}>{label}</Text>
@@ -34,18 +40,22 @@ const chipS = StyleSheet.create({
 
 // ── Screen Header ─────────────────────────────────────────
 export const ScreenHeader = ({ title, subtitle, onBack, rightComponent, transparent }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   return (
     <View style={[
       headerS.wrap,
       {
         backgroundColor: transparent ? 'transparent' : colors.bgMedium,
         borderBottomColor: transparent ? 'transparent' : colors.border,
-        borderBottomWidth: transparent ? 0 : 0.5,
+        borderBottomWidth: transparent ? 0 : isDark ? 1 : 0.5,
       }
     ]}>
       {onBack ? (
-        <TouchableOpacity style={headerS.backBtn} onPress={onBack} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={[headerS.backBtn, { backgroundColor: colors.bgSurface }]}
+          onPress={onBack}
+          activeOpacity={0.7}
+        >
           <Ionicons name="chevron-back" size={22} color={colors.textWhite} />
         </TouchableOpacity>
       ) : <View style={{ width: 42 }} />}
@@ -69,7 +79,7 @@ const headerS = StyleSheet.create({
 
 // ── Card ──────────────────────────────────────────────────
 export const Card = ({ children, style, onPress, noPadding }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const Component  = onPress ? TouchableOpacity : View;
   return (
     <Component
@@ -77,8 +87,19 @@ export const Card = ({ children, style, onPress, noPadding }) => {
       activeOpacity={0.85}
       style={[
         cardS.card,
-        { backgroundColor: colors.bgCard, borderColor: colors.border, padding: noPadding ? 0 : SPACING.lg },
-        SHADOW.sm,
+        {
+          backgroundColor: colors.bgCard,
+          borderColor: colors.border,
+          borderWidth: isDark ? 1 : 0.5,
+          padding: noPadding ? 0 : SPACING.lg,
+        },
+        isDark ? SHADOW.sm : {
+          elevation: 2,
+          shadowColor: '#00000015',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 1,
+          shadowRadius: 4,
+        },
         style,
       ]}
     >
@@ -87,7 +108,7 @@ export const Card = ({ children, style, onPress, noPadding }) => {
   );
 };
 const cardS = StyleSheet.create({
-  card: { borderRadius: RADIUS.lg, borderWidth: 1, overflow: 'hidden' },
+  card: { borderRadius: RADIUS.lg, overflow: 'hidden' },
 });
 
 // ── Button ────────────────────────────────────────────────
@@ -95,7 +116,7 @@ export const Button = ({
   label, onPress, variant = 'primary', size = 'md',
   icon, iconRight, loading, disabled, style, labelStyle, fullWidth = true,
 }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const sizeMap = {
     sm: { height: 38, fontSize: FONTS.xs, px: SPACING.md, radius: RADIUS.md },
     md: { height: 50, fontSize: FONTS.md, px: SPACING.xl, radius: RADIUS.md },
@@ -145,14 +166,30 @@ const btnS = StyleSheet.create({
 
 // ── Stat Card ─────────────────────────────────────────────
 export const StatCard = ({ label, value, icon, color, sub, trend, wide, onPress }) => {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const c          = color || colors.primary;
   const Component  = onPress ? TouchableOpacity : View;
   return (
     <Component
       onPress={onPress}
       activeOpacity={0.85}
-      style={[statS.card, { backgroundColor: colors.bgCard, borderColor: colors.border, borderLeftColor: c, flex: wide ? 2 : 1 }, SHADOW.sm]}
+      style={[
+        statS.card,
+        {
+          backgroundColor: colors.bgCard,
+          borderColor: colors.border,
+          borderWidth: isDark ? 1 : 0.5,
+          borderLeftColor: c,
+          flex: wide ? 2 : 1,
+        },
+        isDark ? SHADOW.sm : {
+          elevation: 2,
+          shadowColor: '#00000012',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 1,
+          shadowRadius: 4,
+        },
+      ]}
     >
       <View style={[statS.iconWrap, { backgroundColor: c + '18' }]}>
         <Ionicons name={icon} size={18} color={c} />
@@ -186,7 +223,7 @@ export const EmptyState = ({ icon, title, subtitle, actionLabel, onAction }) => 
   const { colors } = useTheme();
   return (
     <View style={emptyS.wrap}>
-      <View style={[emptyS.iconWrap, { backgroundColor: colors.border }]}>
+      <View style={[emptyS.iconWrap, { backgroundColor: colors.bgSurface }]}>
         <Ionicons name={icon} size={36} color={colors.textDark} />
       </View>
       <Text style={[emptyS.title, { color: colors.textMuted }]}>{title}</Text>
@@ -212,7 +249,10 @@ const emptyS = StyleSheet.create({
 export const OfflineBanner = ({ pendingCount }) => {
   const { colors } = useTheme();
   return (
-    <View style={[obS.wrap, { backgroundColor: colors.warning + '18', borderColor: colors.warning + '44' }]}>
+    <View style={[obS.wrap, {
+      backgroundColor: colors.warning + '18',
+      borderColor: colors.warning + '44',
+    }]}>
       <Ionicons name="cloud-offline-outline" size={14} color={colors.warning} />
       <Text style={[obS.text, { color: colors.warning }]}>
         Mode Offline{pendingCount > 0 ? ` • ${pendingCount} transaksi menunggu sync` : ''}
@@ -306,4 +346,47 @@ export const Avatar = ({ name, size = 46, color }) => {
 const avS = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
   text: { fontWeight: '800' },
+});
+
+// ── Badge ─────────────────────────────────────────────────
+export const Badge = ({ label, color, size = 'sm' }) => {
+  const { colors } = useTheme();
+  const c = color || colors.primary;
+  const fontSize = size === 'sm' ? 9 : 11;
+  return (
+    <View style={[bdgS.wrap, { backgroundColor: c + '20', borderColor: c + '44' }]}>
+      <Text style={[bdgS.text, { color: c, fontSize }]}>{label}</Text>
+    </View>
+  );
+};
+const bdgS = StyleSheet.create({
+  wrap: { borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 2, borderWidth: 1 },
+  text: { fontWeight: '700', letterSpacing: 0.2 },
+});
+
+// ── Input Field ───────────────────────────────────────────
+export const InputField = ({ label, error, children, required }) => {
+  const { colors } = useTheme();
+  return (
+    <View style={ifS.group}>
+      {label ? (
+        <Text style={[ifS.label, { color: colors.textLight }]}>
+          {label}{required ? <Text style={{ color: colors.danger }}> *</Text> : null}
+        </Text>
+      ) : null}
+      {children}
+      {error ? (
+        <View style={ifS.errRow}>
+          <Ionicons name="warning-outline" size={11} color={colors.danger} />
+          <Text style={[ifS.errText, { color: colors.danger }]}>{error}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+};
+const ifS = StyleSheet.create({
+  group: { marginBottom: SPACING.md },
+  label: { fontSize: FONTS.sm, fontWeight: '600', marginBottom: 6 },
+  errRow:{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  errText:{ fontSize: FONTS.xs },
 });

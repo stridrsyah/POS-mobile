@@ -1,8 +1,8 @@
 /**
- * src/navigation/RootNavigator.js — v2.1
- * - Custom tab bar dengan tema konsisten dark/light
- * - Tidak ada garis hitam di bawah
- * - Ikon kasir diperbaiki
+ * src/navigation/RootNavigator.js — v2.2
+ * FIXED: Full light mode support di tab bar & navigator
+ * - Tab bar background, border, icon, teks konsisten light/dark
+ * - Tidak ada garis hitam tersisa di light mode
  */
 
 import React, { useRef, useEffect } from 'react';
@@ -60,14 +60,14 @@ function LoadingScreen() {
 }
 
 // ── Tab Item dengan Animasi ───────────────────────────────
-const TabItem = ({ tab, focused, onPress, colors }) => {
+const TabItem = ({ tab, focused, onPress, colors, isDark }) => {
   const scaleAnim   = useRef(new Animated.Value(focused ? 1 : 0.95)).current;
   const opacityAnim = useRef(new Animated.Value(focused ? 1 : 0.6)).current;
 
   useEffect(() => {
     Animated.parallel([
       Animated.spring(scaleAnim,   { toValue: focused ? 1 : 0.95, friction: 6, useNativeDriver: true }),
-      Animated.timing(opacityAnim, { toValue: focused ? 1 : 0.6, duration: 150, useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: focused ? 1 : 0.65, duration: 150, useNativeDriver: true }),
     ]).start();
   }, [focused]);
 
@@ -78,7 +78,10 @@ const TabItem = ({ tab, focused, onPress, colors }) => {
     <TouchableOpacity onPress={onPress} style={tabS.tab} activeOpacity={0.7}>
       <Animated.View style={[tabS.inner, { transform: [{ scale: scaleAnim }], opacity: opacityAnim }]}>
         {focused && (
-          <View style={[tabS.activePill, { backgroundColor: colors.primary + '18' }]} />
+          <View style={[
+            tabS.activePill,
+            { backgroundColor: isDark ? colors.primary + '18' : colors.primary + '12' },
+          ]} />
         )}
         {tab.lib === 'MCo'
           ? <MaterialCommunityIcons name={iconName} size={23} color={iconColor} />
@@ -92,8 +95,8 @@ const TabItem = ({ tab, focused, onPress, colors }) => {
   );
 };
 
-// ── POS Tab Center ────────────────────────────────────────
-const PosTabItem = ({ focused, onPress, totalItems, colors }) => {
+// ── POS Tab Center Button ─────────────────────────────────
+const PosTabItem = ({ focused, onPress, totalItems, colors, isDark }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -111,14 +114,18 @@ const PosTabItem = ({ focused, onPress, totalItems, colors }) => {
         <View style={[
           tabS.posCircle,
           {
-            backgroundColor: focused ? colors.primaryDark || '#5A52D5' : colors.primary,
+            backgroundColor: focused
+              ? (isDark ? colors.primaryDark || '#5A52D5' : '#5A52D5')
+              : colors.primary,
             shadowColor: colors.primary,
+            // Light mode: kurangi border
+            borderWidth: isDark ? 3 : 2,
+            borderColor: isDark ? colors.bgMedium : '#FFFFFF',
           }
         ]}>
-          {/* Ikon kasir: register / point-of-sale */}
           <MaterialCommunityIcons name="cash-register" size={26} color="#fff" />
           {totalItems > 0 && (
-            <View style={[tabS.badge, { backgroundColor: colors.danger }]}>
+            <View style={[tabS.badge, { backgroundColor: colors.danger, borderColor: isDark ? colors.bgMedium : '#FFFFFF' }]}>
               <Text style={tabS.badgeTxt}>{totalItems > 9 ? '9+' : totalItems}</Text>
             </View>
           )}
@@ -145,13 +152,12 @@ const tabS = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     elevation: 10, shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.35, shadowRadius: 10,
-    borderWidth: 3, borderColor: 'transparent',
   },
   badge: {
     position: 'absolute', top: -5, right: -5,
     width: 19, height: 19, borderRadius: 10,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: '#fff',
+    borderWidth: 2,
   },
   badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
 });
@@ -174,9 +180,17 @@ function CustomTabBar({ state, navigation }) {
       tabBarS.outerWrap,
       {
         backgroundColor: colors.tabBg,
-        // Tidak ada borderTopColor gelap — gunakan warna border tema
+        // Light mode: shadow tipis, bukan border hitam
         borderTopColor: isDark ? colors.border : colors.border,
         borderTopWidth: isDark ? 1 : 0.5,
+        // Light mode: shadow untuk "depth"
+        ...(isDark ? {} : {
+          shadowColor: '#00000010',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 1,
+          shadowRadius: 8,
+          elevation: 8,
+        }),
       }
     ]}>
       <View style={tabBarS.bar}>
@@ -197,6 +211,7 @@ function CustomTabBar({ state, navigation }) {
                 onPress={onPress}
                 totalItems={totalItems}
                 colors={colors}
+                isDark={isDark}
               />
             );
           }
@@ -208,6 +223,7 @@ function CustomTabBar({ state, navigation }) {
               focused={focused}
               onPress={onPress}
               colors={colors}
+              isDark={isDark}
             />
           );
         })}
@@ -313,7 +329,7 @@ export default function RootNavigator() {
           background:   colors.bgDark,
           card:         colors.bgMedium,
           text:         colors.textWhite,
-          border:       colors.border,
+          border:       isDark ? colors.border : 'transparent',
           notification: colors.danger,
         },
       }}

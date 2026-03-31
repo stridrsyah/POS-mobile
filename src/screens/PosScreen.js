@@ -1,6 +1,5 @@
 /**
- * src/screens/PosScreen.js — Kasir v2
- * Offline product cache + theme support + improved UI
+ * src/screens/PosScreen.js — Kasir v2.2 (FIXED: Full Light Mode)
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
@@ -15,10 +14,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCart } from '../context/CartContext';
 import { useTheme } from '../context/ThemeContext';
 import { productsAPI, categoriesAPI, getImageUrl } from '../services/api';
-import {
-  offlineProducts, offlineCategories, isOnline,
-} from '../services/offlineService';
-import { FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
+import { offlineProducts, offlineCategories, isOnline } from '../services/offlineService';
+import { FONTS, SPACING, RADIUS } from '../utils/theme';
 import { formatCurrency } from '../utils/helpers';
 import { OfflineBanner, Skeleton } from '../components/UIComponents';
 
@@ -43,32 +40,32 @@ const DEMO_CATEGORIES = [
   { id: 3, name: 'Snack' },
 ];
 
-const CategoryChip = ({ cat, active, onPress, colors }) => (
+const CategoryChip = ({ cat, active, onPress, colors, isDark }) => (
   <TouchableOpacity
     style={[
-      ccS.chip,
+      pcS.chip,
       {
-        backgroundColor: active ? colors.primary : colors.bgCard,
+        backgroundColor: active ? colors.primary : (isDark ? colors.bgCard : '#FFFFFF'),
         borderColor: active ? colors.primary : colors.border,
       }
     ]}
     onPress={onPress}
     activeOpacity={0.75}
   >
-    <Text style={[ccS.txt, { color: active ? '#fff' : colors.textMuted }]}>{cat.name}</Text>
+    <Text style={[pcS.chipTxt, { color: active ? '#fff' : colors.textMuted }]}>{cat.name}</Text>
   </TouchableOpacity>
 );
 
-const ccS = StyleSheet.create({
+const pcS = StyleSheet.create({
   chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: RADIUS.full, borderWidth: 1, marginRight: SPACING.sm },
-  txt: { fontSize: FONTS.sm, fontWeight: '600' },
+  chipTxt: { fontSize: FONTS.sm, fontWeight: '600' },
 });
 
 const ProductCard = ({ item, onPress, isAdded, colors, isDark }) => {
   const scaleAnim = React.useRef(new Animated.Value(1)).current;
-  const imageUri = getImageUrl(item);
+  const imageUri  = getImageUrl(item);
   const outOfStock = item.stock <= 0;
-  const lowStock = !outOfStock && item.stock <= 5;
+  const lowStock   = !outOfStock && item.stock <= 5;
 
   useEffect(() => {
     if (isAdded) {
@@ -80,61 +77,58 @@ const ProductCard = ({ item, onPress, isAdded, colors, isDark }) => {
   }, [isAdded]);
 
   return (
-    <Animated.View style={[{ transform: [{ scale: scaleAnim }] }]}>
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <TouchableOpacity
         style={[
-          pcS.card,
+          cardS.card,
           {
             backgroundColor: colors.bgCard,
-            borderColor: isAdded ? colors.success : outOfStock ? colors.border : colors.border,
-            borderWidth: isAdded ? 2 : 1,
+            borderColor: isAdded ? colors.success : colors.border,
+            borderWidth: isAdded ? 2 : (isDark ? 1 : 0.5),
             width: CARD_WIDTH,
+            ...(isDark ? {} : {
+              shadowColor: '#00000010',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 1,
+              shadowRadius: 6,
+              elevation: 3,
+            }),
           },
-          SHADOW.sm,
         ]}
         onPress={() => onPress(item)}
         disabled={outOfStock}
         activeOpacity={0.82}
       >
-        {/* Image */}
-        <View style={pcS.imgWrap}>
+        <View style={cardS.imgWrap}>
           {imageUri ? (
-            <Image source={{ uri: imageUri }} style={pcS.img} />
+            <Image source={{ uri: imageUri }} style={cardS.img} />
           ) : (
-            <View style={[pcS.imgPlaceholder, { backgroundColor: colors.bgSurface || colors.bgMedium }]}>
+            <View style={[cardS.imgPlaceholder, { backgroundColor: colors.bgSurface }]}>
               <Ionicons name="cube-outline" size={28} color={colors.textDark} />
             </View>
           )}
-
-          {/* Overlay: out of stock */}
           {outOfStock && (
-            <View style={pcS.soldOverlay}>
-              <Text style={pcS.soldText}>Habis</Text>
+            <View style={cardS.soldOverlay}>
+              <Text style={cardS.soldText}>Habis</Text>
             </View>
           )}
-
-          {/* Badge: low stock */}
           {lowStock && !outOfStock && (
-            <View style={[pcS.badge, { backgroundColor: colors.warning }]}>
-              <Text style={pcS.badgeTxt}>Sisa {item.stock}</Text>
+            <View style={[cardS.badge, { backgroundColor: colors.warning }]}>
+              <Text style={cardS.badgeTxt}>Sisa {item.stock}</Text>
             </View>
           )}
-
-          {/* Add feedback */}
           {isAdded && (
-            <View style={[pcS.addedOverlay, { backgroundColor: colors.success + 'CC' }]}>
+            <View style={[cardS.addedOverlay, { backgroundColor: colors.success + 'CC' }]}>
               <Ionicons name="checkmark" size={28} color="#fff" />
             </View>
           )}
         </View>
-
-        {/* Info */}
-        <View style={pcS.info}>
-          <Text style={[pcS.name, { color: colors.textWhite }]} numberOfLines={2}>{item.name}</Text>
-          <Text style={[pcS.category, { color: colors.textDark }]}>{item.category_name || 'Umum'}</Text>
-          <View style={pcS.priceRow}>
-            <Text style={[pcS.price, { color: colors.primary }]}>{formatCurrency(item.selling_price)}</Text>
-            <View style={[pcS.addBtn, { backgroundColor: outOfStock ? colors.textDark : colors.primary + '20' }]}>
+        <View style={cardS.info}>
+          <Text style={[cardS.name, { color: colors.textWhite }]} numberOfLines={2}>{item.name}</Text>
+          <Text style={[cardS.category, { color: colors.textDark }]}>{item.category_name || 'Umum'}</Text>
+          <View style={cardS.priceRow}>
+            <Text style={[cardS.price, { color: colors.primary }]}>{formatCurrency(item.selling_price)}</Text>
+            <View style={[cardS.addBtn, { backgroundColor: outOfStock ? colors.bgSurface : colors.primary + '20' }]}>
               <Ionicons name="add" size={16} color={outOfStock ? colors.textDark : colors.primary} />
             </View>
           </View>
@@ -144,25 +138,15 @@ const ProductCard = ({ item, onPress, isAdded, colors, isDark }) => {
   );
 };
 
-const pcS = StyleSheet.create({
+const cardS = StyleSheet.create({
   card: { borderRadius: RADIUS.lg, overflow: 'hidden', marginBottom: SPACING.md },
   imgWrap: { height: 110, position: 'relative' },
   img: { width: '100%', height: '100%', resizeMode: 'cover' },
   imgPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  soldOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    alignItems: 'center', justifyContent: 'center',
-  },
+  soldOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   soldText: { color: '#fff', fontWeight: '800', fontSize: FONTS.sm, letterSpacing: 0.5 },
-  addedOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  badge: {
-    position: 'absolute', top: 6, left: 6,
-    borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 2,
-  },
+  addedOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: 6, left: 6, borderRadius: RADIUS.full, paddingHorizontal: 7, paddingVertical: 2 },
   badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
   info: { padding: SPACING.sm, gap: 3 },
   name: { fontSize: FONTS.sm, fontWeight: '600', lineHeight: 18 },
@@ -190,57 +174,29 @@ export default function PosScreen({ navigation }) {
     setIsLoading(true);
     const isConn = isOnline();
     setOnline(isConn);
-
     try {
       if (isConn) {
-        const [prodResult, catResult] = await Promise.all([
-          productsAPI.getAll(),
-          categoriesAPI.getAll(),
-        ]);
-
+        const [prodResult, catResult] = await Promise.all([productsAPI.getAll(), categoriesAPI.getAll()]);
         if (prodResult.success && Array.isArray(prodResult.data)) {
-          setProducts(prodResult.data);
-          setFiltered(prodResult.data);
-          await offlineProducts.save(prodResult.data);
-          setIsDemo(false);
-        } else {
-          throw new Error('API failed');
-        }
-
+          setProducts(prodResult.data); setFiltered(prodResult.data);
+          await offlineProducts.save(prodResult.data); setIsDemo(false);
+        } else throw new Error('API failed');
         if (catResult.success && Array.isArray(catResult.data)) {
           const cats = [{ id: 0, name: 'Semua' }, ...catResult.data];
-          setCategories(cats);
-          await offlineCategories.save(cats);
+          setCategories(cats); await offlineCategories.save(cats);
         }
       } else {
-        // Load from cache
         const cachedProds = await offlineProducts.loadForce();
-        const cachedCats = await offlineCategories.load();
-        if (cachedProds) {
-          setProducts(cachedProds);
-          setFiltered(cachedProds);
-          setIsDemo(false);
-        } else {
-          setProducts(DEMO_PRODUCTS);
-          setFiltered(DEMO_PRODUCTS);
-          setIsDemo(true);
-        }
+        const cachedCats  = await offlineCategories.load();
+        if (cachedProds) { setProducts(cachedProds); setFiltered(cachedProds); setIsDemo(false); }
+        else { setProducts(DEMO_PRODUCTS); setFiltered(DEMO_PRODUCTS); setIsDemo(true); }
         if (cachedCats) setCategories(cachedCats);
       }
     } catch {
-      // Try cache, fallback to demo
       const cached = await offlineProducts.loadForce();
-      if (cached) {
-        setProducts(cached);
-        setFiltered(cached);
-        setIsDemo(false);
-      } else {
-        setProducts(DEMO_PRODUCTS);
-        setFiltered(DEMO_PRODUCTS);
-        setIsDemo(true);
-      }
+      if (cached) { setProducts(cached); setFiltered(cached); setIsDemo(false); }
+      else { setProducts(DEMO_PRODUCTS); setFiltered(DEMO_PRODUCTS); setIsDemo(true); }
     }
-
     setIsLoading(false);
   };
 
@@ -254,23 +210,16 @@ export default function PosScreen({ navigation }) {
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(p =>
-        p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q))
-      );
+      result = result.filter(p => p.name.toLowerCase().includes(q) || (p.barcode && p.barcode.includes(q)));
     }
     setFiltered(result);
   }, [searchQuery, selectedCategory, products, categories]);
 
   const handleAddToCart = (product) => {
-    if (product.stock <= 0) {
-      Alert.alert('Stok Habis', `${product.name} sedang tidak tersedia.`);
-      return;
-    }
+    if (product.stock <= 0) { Alert.alert('Stok Habis', `${product.name} sedang tidak tersedia.`); return; }
     addItem(product);
     setAddedFeedback(prev => ({ ...prev, [product.id]: true }));
-    setTimeout(() => {
-      setAddedFeedback(prev => ({ ...prev, [product.id]: false }));
-    }, 700);
+    setTimeout(() => setAddedFeedback(prev => ({ ...prev, [product.id]: false })), 700);
   };
 
   const handleOpenScanner = () => {
@@ -278,9 +227,8 @@ export default function PosScreen({ navigation }) {
       onScan: async (barcode) => {
         try {
           const result = await productsAPI.getByBarcode?.(barcode) || { success: false };
-          if (result.success && result.data) {
-            handleAddToCart(result.data);
-          } else {
+          if (result.success && result.data) handleAddToCart(result.data);
+          else {
             const found = products.find(p => p.barcode === barcode || p.barcode === barcode.trim());
             if (found) handleAddToCart(found);
             else Alert.alert('❌ Tidak Ditemukan', `Barcode: ${barcode}`);
@@ -293,7 +241,8 @@ export default function PosScreen({ navigation }) {
     });
   };
 
-  const s = getStyles(colors, isDark);
+  // Header gradient sesuai tema
+  const headerGrad = isDark ? ['#12121F', '#1A1A2E'] : ['#FFFFFF', '#F8F8FF'];
 
   const renderProduct = ({ item }) => (
     <ProductCard
@@ -310,31 +259,26 @@ export default function PosScreen({ navigation }) {
       {!online && !isDemo && <OfflineBanner />}
 
       {/* Header */}
-      <LinearGradient
-        colors={isDark ? ['#12121F', '#1A1A2E'] : ['#FFFFFF', '#F8F8FF']}
-        style={s.header}
-      >
+      <LinearGradient colors={headerGrad} style={s.header}>
         <View>
           <Text style={[s.headerTitle, { color: colors.textWhite }]}>Kasir</Text>
           {isDemo && <Text style={[s.demoLabel, { color: colors.warning }]}>⚠️ Demo Mode</Text>}
           {!online && !isDemo && <Text style={[s.demoLabel, { color: colors.warning }]}>📦 Dari cache</Text>}
         </View>
-
         <View style={{ flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' }}>
           <TouchableOpacity
-            style={[s.scanButton, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40' }]}
+            style={[s.iconBtn, { backgroundColor: colors.primary + '20', borderColor: colors.primary + '40', borderWidth: 1 }]}
             onPress={handleOpenScanner}
           >
             <Ionicons name="barcode-outline" size={20} color={colors.primary} />
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[s.cartButton, { backgroundColor: colors.primary }]}
+            style={[s.iconBtn, { backgroundColor: colors.primary, position: 'relative' }]}
             onPress={() => navigation.navigate('Cart')}
           >
             <Ionicons name="cart" size={20} color="#fff" />
             {totalItems > 0 && (
-              <View style={[s.cartBadge, { backgroundColor: colors.danger }]}>
+              <View style={[s.cartBadge, { backgroundColor: colors.danger, borderColor: isDark ? colors.bgMedium : '#fff' }]}>
                 <Text style={s.cartBadgeTxt}>{totalItems > 9 ? '9+' : totalItems}</Text>
               </View>
             )}
@@ -343,12 +287,12 @@ export default function PosScreen({ navigation }) {
       </LinearGradient>
 
       {/* Search */}
-      <View style={[s.searchWrap, { backgroundColor: isDark ? colors.bgMedium : '#FFFFFF', borderBottomColor: colors.border }]}>
+      <View style={[s.searchWrap, { backgroundColor: isDark ? colors.bgMedium : '#FFFFFF', borderBottomColor: colors.border, borderBottomWidth: isDark ? 1 : 0.5 }]}>
         <View style={[s.searchBar, { backgroundColor: colors.bgInput, borderColor: colors.border }]}>
           <Ionicons name="search-outline" size={16} color={colors.textMuted} />
           <TextInput
             style={[s.searchInput, { color: colors.textWhite }]}
-            placeholder="Cari produk..."
+            placeholder="Cari produk atau barcode..."
             placeholderTextColor={colors.textDark}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -362,7 +306,7 @@ export default function PosScreen({ navigation }) {
       </View>
 
       {/* Category Filter */}
-      <View style={[s.catWrap, { backgroundColor: isDark ? colors.bgMedium : '#FFFFFF', borderBottomColor: colors.border }]}>
+      <View style={[s.catWrap, { backgroundColor: isDark ? colors.bgMedium : '#FFFFFF', borderBottomColor: colors.border, borderBottomWidth: isDark ? 1 : 0.5 }]}>
         <FlatList
           data={categories}
           horizontal
@@ -375,6 +319,7 @@ export default function PosScreen({ navigation }) {
               active={selectedCategory === item.id}
               onPress={() => setSelectedCat(item.id)}
               colors={colors}
+              isDark={isDark}
             />
           )}
         />
@@ -435,74 +380,28 @@ export default function PosScreen({ navigation }) {
   );
 }
 
-const getStyles = (colors, isDark) => StyleSheet.create({
+const s = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 50, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md,
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingTop: 50, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md },
   headerTitle: { fontSize: FONTS.xl, fontWeight: '800', letterSpacing: -0.5 },
   demoLabel: { fontSize: FONTS.xs, fontWeight: '600', marginTop: 2 },
-
-  scanButton: {
-    width: 42, height: 42, borderRadius: RADIUS.md,
-    alignItems: 'center', justifyContent: 'center', borderWidth: 1,
-  },
-  cartButton: {
-    width: 42, height: 42, borderRadius: RADIUS.md,
-    alignItems: 'center', justifyContent: 'center', position: 'relative',
-  },
-  cartBadge: {
-    position: 'absolute', top: -5, right: -5,
-    width: 18, height: 18, borderRadius: 9,
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: colors.bgDark,
-  },
+  iconBtn: { width: 42, height: 42, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  cartBadge: { position: 'absolute', top: -5, right: -5, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5 },
   cartBadgeTxt: { color: '#fff', fontSize: 9, fontWeight: '800' },
-
-  searchWrap: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm, borderBottomWidth: 1 },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    borderRadius: RADIUS.md, paddingHorizontal: SPACING.md,
-    height: 44, borderWidth: 1,
-  },
+  searchWrap: { paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm },
+  searchBar: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 44, borderWidth: 1 },
   searchInput: { flex: 1, fontSize: FONTS.md },
-
-  catWrap: { borderBottomWidth: 1 },
-
-  resultCount: {
-    fontSize: FONTS.xs, paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.sm, paddingBottom: 2,
-  },
-
-  skeletonGrid: {
-    flexDirection: 'row', flexWrap: 'wrap',
-    gap: SPACING.md, padding: SPACING.lg,
-  },
-
+  catWrap: {},
+  resultCount: { fontSize: FONTS.xs, paddingHorizontal: SPACING.xl, paddingTop: SPACING.sm, paddingBottom: 2 },
+  skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: SPACING.md, padding: SPACING.lg },
   row: { gap: SPACING.md, justifyContent: 'flex-start' },
   productList: { padding: SPACING.lg, paddingBottom: 100 },
-
   emptyWrap: { alignItems: 'center', paddingTop: 60, gap: SPACING.md },
   emptyTitle: { fontSize: FONTS.lg, fontWeight: '700' },
   emptyTxt: { fontSize: FONTS.sm },
-
-  floatingCart: {
-    position: 'absolute', bottom: 20,
-    left: SPACING.xl, right: SPACING.xl,
-    borderRadius: RADIUS.lg, overflow: 'hidden',
-    elevation: 12, shadowColor: '#6C63FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35, shadowRadius: 14,
-  },
-  floatingInner: {
-    flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: SPACING.lg, paddingVertical: 14,
-  },
-  floatingBadge: {
-    width: 28, height: 28, borderRadius: 14,
-    alignItems: 'center', justifyContent: 'center', marginRight: SPACING.sm,
-  },
+  floatingCart: { position: 'absolute', bottom: 20, left: SPACING.xl, right: SPACING.xl, borderRadius: RADIUS.lg, overflow: 'hidden', elevation: 12, shadowColor: '#6C63FF', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.35, shadowRadius: 14 },
+  floatingInner: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, paddingVertical: 14 },
+  floatingBadge: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: SPACING.sm },
   floatingBadgeTxt: { color: '#fff', fontSize: FONTS.sm, fontWeight: '800' },
   floatingTxt: { flex: 1, color: '#fff', fontSize: FONTS.md, fontWeight: '700', textAlign: 'center' },
 });

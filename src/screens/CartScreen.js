@@ -1,8 +1,5 @@
 /**
- * src/screens/CartScreen.js — Keranjang Belanja
- * Revisi:
- *  - Qty bisa diketik langsung (tap angka → input muncul)
- *  - Input voucher promo (validasi kode + terapkan diskon otomatis)
+ * src/screens/CartScreen.js — Keranjang Belanja (FIXED: Full Light Mode)
  */
 
 import React, { useState, useCallback } from 'react';
@@ -14,39 +11,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useCart } from '../context/CartContext';
+import { useTheme } from '../context/ThemeContext';
 import { promosAPI } from '../services/api';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
+import { FONTS, SPACING, RADIUS } from '../utils/theme';
 import { formatCurrency } from '../utils/helpers';
 
 // ── Komponen Item Keranjang ─────────────────────────────────
-const CartItem = ({ item, onRemove, onAdd, onDelete, onQtyEdit }) => {
+const CartItem = ({ item, onRemove, onAdd, onDelete, onQtyEdit, colors, isDark }) => {
   const [qtyInput, setQtyInput] = useState(String(item.quantity));
 
-  // Sync input jika qty berubah dari luar (tombol +/-)
-  useCallback(() => {
-    setQtyInput(String(item.quantity));
-  }, [item.quantity]);
-
-  // Update realtime saat mengetik
   const handleChangeText = (text) => {
-    // Hanya angka
     const cleaned = text.replace(/[^0-9]/g, '');
     setQtyInput(cleaned);
     const val = parseInt(cleaned, 10);
-    if (!isNaN(val) && val > 0) {
-      onQtyEdit(item.id, val); // langsung update ke CartContext
-    }
+    if (!isNaN(val) && val > 0) onQtyEdit(item.id, val);
   };
 
   const handleBlur = () => {
     const val = parseInt(qtyInput, 10);
-    if (isNaN(val) || val <= 0) {
-      setQtyInput('1');
-      onQtyEdit(item.id, 1);
-    }
+    if (isNaN(val) || val <= 0) { setQtyInput('1'); onQtyEdit(item.id, 1); }
   };
 
-  // Sync lokal saat tombol +/- ditekan
   const handleRemove = () => {
     const newQty = item.quantity - 1;
     setQtyInput(newQty > 0 ? String(newQty) : '1');
@@ -59,21 +44,25 @@ const CartItem = ({ item, onRemove, onAdd, onDelete, onQtyEdit }) => {
   };
 
   return (
-    <View style={styles.itemCard}>
-      <View style={styles.itemInfo}>
-        <Text style={styles.itemName} numberOfLines={2}>{item.name}</Text>
-        <Text style={styles.itemPrice}>{formatCurrency(item.price)} / {item.unit || 'pcs'}</Text>
-        {item.category ? <Text style={styles.itemCat}>{item.category}</Text> : null}
+    <View style={[cs.itemCard, { borderBottomColor: colors.divider }]}>
+      <View style={cs.itemInfo}>
+        <Text style={[cs.itemName, { color: colors.textWhite }]} numberOfLines={2}>{item.name}</Text>
+        <Text style={[cs.itemPrice, { color: colors.textMuted }]}>{formatCurrency(item.price)} / {item.unit || 'pcs'}</Text>
+        {item.category ? <Text style={[cs.itemCat, { color: colors.textDark }]}>{item.category}</Text> : null}
       </View>
-
-      <View style={styles.qtyRow}>
-        <TouchableOpacity style={styles.qtyBtn} onPress={handleRemove}>
-          <Ionicons name="remove" size={14} color={COLORS.textWhite} />
+      <View style={cs.qtyRow}>
+        <TouchableOpacity
+          style={[cs.qtyBtn, { backgroundColor: colors.bgSurface, borderColor: colors.border }]}
+          onPress={handleRemove}
+        >
+          <Ionicons name="remove" size={14} color={colors.textWhite} />
         </TouchableOpacity>
-
-        {/* TextInput selalu tampil — ketik langsung update realtime */}
         <TextInput
-          style={styles.qtyInput}
+          style={[cs.qtyInput, {
+            backgroundColor: isDark ? '#2a2a4a' : colors.bgSurface,
+            borderColor: colors.primary,
+            color: colors.textWhite,
+          }]}
           value={qtyInput}
           onChangeText={handleChangeText}
           onBlur={handleBlur}
@@ -81,29 +70,30 @@ const CartItem = ({ item, onRemove, onAdd, onDelete, onQtyEdit }) => {
           returnKeyType="done"
           selectTextOnFocus
         />
-
-        <TouchableOpacity style={[styles.qtyBtn, styles.qtyBtnAdd]} onPress={handleAdd}>
+        <TouchableOpacity
+          style={[cs.qtyBtn, cs.qtyBtnAdd, { backgroundColor: colors.primary, borderColor: colors.primary }]}
+          onPress={handleAdd}
+        >
           <Ionicons name="add" size={14} color="#fff" />
         </TouchableOpacity>
       </View>
-
-      <View style={styles.itemRight}>
-        <Text style={styles.itemSubtotal}>{formatCurrency(item.price * item.quantity)}</Text>
+      <View style={cs.itemRight}>
+        <Text style={[cs.itemSubtotal, { color: colors.primary }]}>{formatCurrency(item.price * item.quantity)}</Text>
         <TouchableOpacity
           onPress={() => Alert.alert('Hapus', `Hapus "${item.name}"?`, [
             { text: 'Batal', style: 'cancel' },
             { text: 'Hapus', style: 'destructive', onPress: () => onDelete(item.id) },
           ])}
         >
-          <Ionicons name="trash-outline" size={14} color={COLORS.danger} />
+          <Ionicons name="trash-outline" size={14} color={colors.danger} />
         </TouchableOpacity>
       </View>
     </View>
   );
 };
 
-// ── Screen Utama ────────────────────────────────────────────
 export default function CartScreen({ navigation }) {
+  const { colors, isDark } = useTheme();
   const {
     items, customer, discount, discountPercent,
     subtotal, totalAmount, totalItems,
@@ -111,18 +101,13 @@ export default function CartScreen({ navigation }) {
     applyDiscount, applyDiscountPercent, setCustomer, isEmpty,
   } = useCart();
 
-  // Diskon manual
   const [discountInput, setDiscountInput] = useState('');
   const [discountMode,  setDiscountMode]  = useState('nominal');
-
-  // Voucher promo
   const [voucherCode,    setVoucherCode]    = useState('');
   const [voucherLoading, setVoucherLoading] = useState(false);
   const [appliedVoucher, setAppliedVoucher] = useState(null);
-
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
-  // ── Handler diskon manual ──
   const handleApplyDiscount = useCallback(() => {
     const raw = discountInput.replace(/[^0-9.]/g, '');
     const val = parseFloat(raw);
@@ -134,56 +119,36 @@ export default function CartScreen({ navigation }) {
       applyDiscount(val);
     }
     setDiscountInput('');
-    setAppliedVoucher(null); // reset voucher jika pakai diskon manual
+    setAppliedVoucher(null);
   }, [discountInput, discountMode, applyDiscount, applyDiscountPercent]);
 
-  // ── Handler voucher promo ──
   const handleApplyVoucher = useCallback(async () => {
     const code = voucherCode.trim().toUpperCase();
     if (!code) { Alert.alert('Kosong', 'Masukkan kode voucher terlebih dahulu'); return; }
-
     setVoucherLoading(true);
     const result = await promosAPI.getAll();
     setVoucherLoading(false);
-
-    if (!result.success) { Alert.alert('Gagal', 'Tidak bisa memuat data promo. Cek koneksi.'); return; }
-
-    // Cari promo yang cocok
-    let promoList = [];
-    if (Array.isArray(result.data)) promoList = result.data;
-    else if (result.data && typeof result.data === 'object') promoList = Object.values(result.data);
-
+    if (!result.success) { Alert.alert('Gagal', 'Tidak bisa memuat data promo.'); return; }
+    let promoList = Array.isArray(result.data) ? result.data : Object.values(result.data || {});
     const promo = promoList.find(p =>
       p.code && p.code.toUpperCase() === code &&
       (p.is_active === 1 || p.is_active === '1' || p.is_active === true)
     );
-
-    if (!promo) { Alert.alert('Tidak Valid', `Kode voucher "${code}" tidak ditemukan atau sudah tidak aktif.`); return; }
-
-    // Cek min purchase
+    if (!promo) { Alert.alert('Tidak Valid', `Kode voucher "${code}" tidak ditemukan.`); return; }
     if (promo.min_purchase && subtotal < promo.min_purchase) {
-      Alert.alert('Belum Memenuhi', `Minimum pembelian ${formatCurrency(promo.min_purchase)} untuk voucher ini.`);
+      Alert.alert('Belum Memenuhi', `Minimum pembelian ${formatCurrency(promo.min_purchase)}.`);
       return;
     }
-
-    // Hitung nilai diskon
-    let discountVal = 0;
     if (promo.type === 'percent') {
-      discountVal = Math.round((subtotal * promo.value) / 100);
-      if (promo.max_discount && promo.max_discount > 0) {
-        discountVal = Math.min(discountVal, promo.max_discount);
-      }
+      let discountVal = Math.round((subtotal * promo.value) / 100);
+      if (promo.max_discount && promo.max_discount > 0) discountVal = Math.min(discountVal, promo.max_discount);
       applyDiscountPercent(promo.value);
     } else {
-      discountVal = promo.value;
-      applyDiscount(discountVal);
+      applyDiscount(promo.value);
     }
-
-    setAppliedVoucher({ ...promo, discountVal });
+    setAppliedVoucher(promo);
     setVoucherCode('');
-    Alert.alert('Voucher Diterapkan! 🎉',
-      `${promo.name}\nDiskon: ${promo.type === 'percent' ? `${promo.value}%` : formatCurrency(promo.value)}`
-    );
+    Alert.alert('Voucher Diterapkan! 🎉', `${promo.name}`);
   }, [voucherCode, subtotal, applyDiscount, applyDiscountPercent]);
 
   const handleRemoveDiscount = useCallback(() => {
@@ -192,7 +157,6 @@ export default function CartScreen({ navigation }) {
     setDiscountInput('');
   }, [applyDiscount]);
 
-  // Handler qty stabil
   const handleRemove  = useCallback((id) => removeItem(id), [removeItem]);
   const handleAdd     = useCallback((id, qty) => setItemQuantity(id, qty), [setItemQuantity]);
   const handleDelete  = useCallback((id) => deleteItem(id), [deleteItem]);
@@ -200,21 +164,23 @@ export default function CartScreen({ navigation }) {
 
   if (isEmpty) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[cs.container, { backgroundColor: colors.bgDark }]}>
+        <View style={[cs.header, { backgroundColor: colors.bgMedium, borderBottomColor: colors.border }]}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Ionicons name="arrow-back" size={24} color={COLORS.textWhite} />
+            <Ionicons name="arrow-back" size={24} color={colors.textWhite} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Keranjang</Text>
+          <Text style={[cs.headerTitle, { color: colors.textWhite }]}>Keranjang</Text>
           <View style={{ width: 24 }} />
         </View>
-        <View style={styles.emptyWrap}>
-          <Ionicons name="cart-outline" size={72} color={COLORS.textDark} />
-          <Text style={styles.emptyTitle}>Keranjang Kosong</Text>
-          <Text style={styles.emptyText}>Tambahkan produk dari halaman Kasir</Text>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+        <View style={cs.emptyWrap}>
+          <View style={[cs.emptyIcon, { backgroundColor: colors.bgSurface }]}>
+            <Ionicons name="cart-outline" size={48} color={colors.textDark} />
+          </View>
+          <Text style={[cs.emptyTitle, { color: colors.textWhite }]}>Keranjang Kosong</Text>
+          <Text style={[cs.emptyText, { color: colors.textMuted }]}>Tambahkan produk dari halaman Kasir</Text>
+          <TouchableOpacity style={[cs.backBtn, { backgroundColor: colors.primary }]} onPress={() => navigation.goBack()}>
             <Ionicons name="arrow-back" size={16} color="#fff" />
-            <Text style={styles.backBtnText}>Kembali ke Kasir</Text>
+            <Text style={cs.backBtnText}>Kembali ke Kasir</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -222,15 +188,15 @@ export default function CartScreen({ navigation }) {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[cs.container, { backgroundColor: colors.bgDark }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[cs.header, { backgroundColor: colors.bgMedium, borderBottomColor: colors.border, borderBottomWidth: isDark ? 1 : 0.5 }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textWhite} />
+          <Ionicons name="arrow-back" size={24} color={colors.textWhite} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Keranjang ({totalItems} item)</Text>
+        <Text style={[cs.headerTitle, { color: colors.textWhite }]}>Keranjang ({totalItems} item)</Text>
         <TouchableOpacity onPress={() => setShowClearConfirm(true)}>
-          <Ionicons name="trash-outline" size={22} color={COLORS.danger} />
+          <Ionicons name="trash-outline" size={22} color={colors.danger} />
         </TouchableOpacity>
       </View>
 
@@ -241,8 +207,8 @@ export default function CartScreen({ navigation }) {
           keyboardShouldPersistTaps="handled"
         >
           {/* Daftar Item */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>ITEM BELANJA</Text>
+          <View style={[cs.section, { backgroundColor: colors.bgCard, borderColor: colors.border, borderWidth: isDark ? 1 : 0.5 }]}>
+            <Text style={[cs.sectionLabel, { color: colors.textDark }]}>ITEM BELANJA</Text>
             {items.map((item) => (
               <CartItem
                 key={`cart-item-${item.id}`}
@@ -251,45 +217,47 @@ export default function CartScreen({ navigation }) {
                 onAdd={handleAdd}
                 onDelete={handleDelete}
                 onQtyEdit={handleQtyEdit}
+                colors={colors}
+                isDark={isDark}
               />
             ))}
           </View>
 
           {/* Pelanggan */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>PELANGGAN</Text>
+          <View style={[cs.section, { backgroundColor: colors.bgCard, borderColor: colors.border, borderWidth: isDark ? 1 : 0.5 }]}>
+            <Text style={[cs.sectionLabel, { color: colors.textDark }]}>PELANGGAN</Text>
             <TouchableOpacity
-              style={styles.selector}
+              style={[cs.selector, { backgroundColor: colors.bgSurface, borderColor: colors.border }]}
               onPress={() => navigation.navigate('Customers', { selectMode: true })}
             >
               <Ionicons
                 name={customer ? 'person' : 'person-add-outline'}
                 size={18}
-                color={customer ? COLORS.primary : COLORS.textMuted}
+                color={customer ? colors.primary : colors.textMuted}
               />
-              <Text style={[styles.selectorText, customer && styles.selectorTextActive]}>
+              <Text style={[cs.selectorText, { color: customer ? colors.textWhite : colors.textMuted }]}>
                 {customer ? customer.name : 'Pilih pelanggan (opsional)'}
               </Text>
               {customer ? (
                 <TouchableOpacity onPress={() => setCustomer(null)}>
-                  <Ionicons name="close-circle" size={18} color={COLORS.textMuted} />
+                  <Ionicons name="close-circle" size={18} color={colors.textMuted} />
                 </TouchableOpacity>
               ) : (
-                <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
               )}
             </TouchableOpacity>
           </View>
 
           {/* Voucher Promo */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>VOUCHER PROMO</Text>
-            <View style={styles.voucherRow}>
-              <View style={styles.voucherInputWrap}>
-                <Ionicons name="pricetag-outline" size={16} color={COLORS.textMuted} style={{ marginLeft: SPACING.sm }} />
+          <View style={[cs.section, { backgroundColor: colors.bgCard, borderColor: colors.border, borderWidth: isDark ? 1 : 0.5 }]}>
+            <Text style={[cs.sectionLabel, { color: colors.textDark }]}>VOUCHER PROMO</Text>
+            <View style={cs.voucherRow}>
+              <View style={[cs.voucherInputWrap, { backgroundColor: colors.bgSurface, borderColor: colors.border }]}>
+                <Ionicons name="pricetag-outline" size={16} color={colors.textMuted} style={{ marginLeft: SPACING.sm }} />
                 <TextInput
-                  style={styles.voucherInput}
+                  style={[cs.voucherInput, { color: colors.textWhite }]}
                   placeholder="Masukkan kode voucher"
-                  placeholderTextColor={COLORS.textDark}
+                  placeholderTextColor={colors.textDark}
                   value={voucherCode}
                   onChangeText={t => setVoucherCode(t.toUpperCase())}
                   autoCapitalize="characters"
@@ -298,124 +266,122 @@ export default function CartScreen({ navigation }) {
                 />
               </View>
               <TouchableOpacity
-                style={[styles.applyBtn, voucherLoading && { opacity: 0.6 }]}
+                style={[cs.applyBtn, { backgroundColor: colors.primary }, voucherLoading && { opacity: 0.6 }]}
                 onPress={handleApplyVoucher}
                 disabled={voucherLoading}
               >
                 {voucherLoading
                   ? <ActivityIndicator size="small" color="#fff" />
-                  : <Text style={styles.applyBtnText}>Pakai</Text>
+                  : <Text style={cs.applyBtnText}>Pakai</Text>
                 }
               </TouchableOpacity>
             </View>
             {appliedVoucher && (
-              <View style={styles.discountBadge}>
-                <Ionicons name="pricetag" size={14} color={COLORS.primary} />
-                <Text style={styles.discountBadgeText}>
+              <View style={[cs.discountBadge, { backgroundColor: colors.success + '20' }]}>
+                <Ionicons name="pricetag" size={14} color={colors.success} />
+                <Text style={[cs.discountBadgeText, { color: colors.success }]}>
                   Voucher "{appliedVoucher.code}" — {appliedVoucher.name}
                 </Text>
                 <TouchableOpacity onPress={handleRemoveDiscount}>
-                  <Ionicons name="close" size={14} color={COLORS.textMuted} />
+                  <Ionicons name="close" size={14} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
             )}
           </View>
 
           {/* Diskon Manual */}
-          <View style={styles.section}>
-            <Text style={styles.sectionLabel}>DISKON MANUAL</Text>
-            <View style={styles.toggle}>
+          <View style={[cs.section, { backgroundColor: colors.bgCard, borderColor: colors.border, borderWidth: isDark ? 1 : 0.5 }]}>
+            <Text style={[cs.sectionLabel, { color: colors.textDark }]}>DISKON MANUAL</Text>
+            <View style={[cs.toggle, { backgroundColor: colors.bgSurface }]}>
               {['nominal', 'percent'].map(m => (
                 <TouchableOpacity
                   key={m}
-                  style={[styles.toggleBtn, discountMode === m && styles.toggleBtnActive]}
+                  style={[cs.toggleBtn, discountMode === m && { backgroundColor: colors.primary }]}
                   onPress={() => setDiscountMode(m)}
                 >
-                  <Text style={[styles.toggleText, discountMode === m && styles.toggleTextActive]}>
+                  <Text style={[cs.toggleText, { color: discountMode === m ? '#fff' : colors.textMuted }]}>
                     {m === 'nominal' ? 'Nominal (Rp)' : 'Persen (%)'}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <View style={styles.discountRow}>
+            <View style={cs.discountRow}>
               <TextInput
-                style={styles.discountInput}
+                style={[cs.discountInput, { backgroundColor: colors.bgSurface, color: colors.textWhite, borderColor: colors.border }]}
                 placeholder={discountMode === 'nominal' ? 'Contoh: 5000' : 'Contoh: 10'}
-                placeholderTextColor={COLORS.textDark}
+                placeholderTextColor={colors.textDark}
                 value={discountInput}
                 onChangeText={setDiscountInput}
                 keyboardType="numeric"
                 returnKeyType="done"
                 onSubmitEditing={handleApplyDiscount}
               />
-              <TouchableOpacity style={styles.applyBtn} onPress={handleApplyDiscount}>
-                <Text style={styles.applyBtnText}>Terapkan</Text>
+              <TouchableOpacity style={[cs.applyBtn, { backgroundColor: colors.primary }]} onPress={handleApplyDiscount}>
+                <Text style={cs.applyBtnText}>Terapkan</Text>
               </TouchableOpacity>
             </View>
             {discount > 0 && !appliedVoucher && (
-              <View style={styles.discountBadge}>
-                <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
-                <Text style={styles.discountBadgeText}>
+              <View style={[cs.discountBadge, { backgroundColor: colors.success + '20' }]}>
+                <Ionicons name="checkmark-circle" size={14} color={colors.success} />
+                <Text style={[cs.discountBadgeText, { color: colors.success }]}>
                   Diskon {discountPercent > 0 ? `${discountPercent}% ` : ''}= -{formatCurrency(discount)}
                 </Text>
                 <TouchableOpacity onPress={handleRemoveDiscount}>
-                  <Ionicons name="close" size={14} color={COLORS.textMuted} />
+                  <Ionicons name="close" size={14} color={colors.textMuted} />
                 </TouchableOpacity>
               </View>
             )}
           </View>
 
           {/* Ringkasan */}
-          <View style={[styles.section, { marginBottom: SPACING.lg }]}>
-            <Text style={styles.sectionLabel}>RINGKASAN</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal ({totalItems} item)</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(subtotal)}</Text>
+          <View style={[cs.section, { marginBottom: SPACING.lg, backgroundColor: colors.bgCard, borderColor: colors.border, borderWidth: isDark ? 1 : 0.5 }]}>
+            <Text style={[cs.sectionLabel, { color: colors.textDark }]}>RINGKASAN</Text>
+            <View style={[cs.summaryRow, { borderBottomColor: colors.divider }]}>
+              <Text style={[cs.summaryLabel, { color: colors.textMuted }]}>Subtotal ({totalItems} item)</Text>
+              <Text style={[cs.summaryValue, { color: colors.textLight }]}>{formatCurrency(subtotal)}</Text>
             </View>
             {discount > 0 && (
-              <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: COLORS.success }]}>
-                  Diskon {appliedVoucher ? `(${appliedVoucher.code})` : ''}
-                </Text>
-                <Text style={[styles.summaryValue, { color: COLORS.success }]}>-{formatCurrency(discount)}</Text>
+              <View style={[cs.summaryRow, { borderBottomColor: colors.divider }]}>
+                <Text style={[cs.summaryLabel, { color: colors.success }]}>Diskon</Text>
+                <Text style={[cs.summaryValue, { color: colors.success }]}>-{formatCurrency(discount)}</Text>
               </View>
             )}
-            <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>TOTAL</Text>
-              <Text style={styles.totalValue}>{formatCurrency(totalAmount)}</Text>
+            <View style={[cs.summaryRow, cs.totalRow, { borderTopColor: colors.border }]}>
+              <Text style={[cs.totalLabel, { color: colors.textWhite }]}>TOTAL</Text>
+              <Text style={[cs.totalValue, { color: colors.primary }]}>{formatCurrency(totalAmount)}</Text>
             </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
       {/* Bar Checkout */}
-      <View style={styles.checkoutBar}>
-        <View style={styles.checkoutInfo}>
-          <Text style={styles.checkoutLabel}>Total Bayar</Text>
-          <Text style={styles.checkoutTotal}>{formatCurrency(totalAmount)}</Text>
+      <View style={[cs.checkoutBar, { backgroundColor: colors.bgMedium, borderTopColor: colors.border, borderTopWidth: isDark ? 1 : 0.5 }]}>
+        <View style={cs.checkoutInfo}>
+          <Text style={[cs.checkoutLabel, { color: colors.textMuted }]}>Total Bayar</Text>
+          <Text style={[cs.checkoutTotal, { color: colors.textWhite }]}>{formatCurrency(totalAmount)}</Text>
         </View>
         <TouchableOpacity
-          style={styles.checkoutBtn}
+          style={[cs.checkoutBtn, { backgroundColor: colors.primary }]}
           onPress={() => navigation.navigate('Checkout')}
           activeOpacity={0.85}
         >
-          <Text style={styles.checkoutBtnText}>Lanjut ke Pembayaran</Text>
+          <Text style={cs.checkoutBtnText}>Lanjut ke Pembayaran</Text>
           <Ionicons name="chevron-forward" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
 
       {/* Modal Hapus Semua */}
       <Modal visible={showClearConfirm} transparent animationType="fade" onRequestClose={() => setShowClearConfirm(false)}>
-        <View style={styles.overlay}>
-          <View style={styles.modalBox}>
-            <Ionicons name="warning-outline" size={40} color={COLORS.warning} />
-            <Text style={styles.modalTitle}>Kosongkan Keranjang?</Text>
-            <Text style={styles.modalText}>Semua {totalItems} item akan dihapus.</Text>
-            <View style={styles.modalBtns}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowClearConfirm(false)}>
-                <Text style={{ color: COLORS.textMuted, fontWeight: '600' }}>Batal</Text>
+        <View style={[cs.overlay, { backgroundColor: 'rgba(0,0,0,0.6)' }]}>
+          <View style={[cs.modalBox, { backgroundColor: colors.bgCard, borderColor: colors.border }]}>
+            <Ionicons name="warning-outline" size={40} color={colors.warning} />
+            <Text style={[cs.modalTitle, { color: colors.textWhite }]}>Kosongkan Keranjang?</Text>
+            <Text style={[cs.modalText, { color: colors.textMuted }]}>Semua {totalItems} item akan dihapus.</Text>
+            <View style={cs.modalBtns}>
+              <TouchableOpacity style={[cs.modalCancel, { backgroundColor: colors.bgSurface }]} onPress={() => setShowClearConfirm(false)}>
+                <Text style={{ color: colors.textMuted, fontWeight: '600' }}>Batal</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={() => { setShowClearConfirm(false); clearCart(); }}>
+              <TouchableOpacity style={[cs.modalConfirm, { backgroundColor: colors.danger }]} onPress={() => { setShowClearConfirm(false); clearCart(); }}>
                 <Text style={{ color: '#fff', fontWeight: '700' }}>Ya, Hapus</Text>
               </TouchableOpacity>
             </View>
@@ -426,85 +392,60 @@ export default function CartScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgDark },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md,
-    backgroundColor: COLORS.bgMedium, borderBottomWidth: 1, borderBottomColor: COLORS.border,
-  },
-  headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
+const cs = StyleSheet.create({
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md, borderBottomWidth: 1 },
+  headerTitle: { fontSize: FONTS.lg, fontWeight: '700' },
   emptyWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md, padding: SPACING.xl },
-  emptyTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  emptyText: { fontSize: FONTS.md, color: COLORS.textMuted, textAlign: 'center' },
-  backBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.primary, paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md, borderRadius: RADIUS.md, marginTop: SPACING.md },
+  emptyIcon: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  emptyTitle: { fontSize: FONTS.xl, fontWeight: '700' },
+  emptyText: { fontSize: FONTS.md, textAlign: 'center' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md, borderRadius: RADIUS.md, marginTop: SPACING.md },
   backBtnText: { color: '#fff', fontSize: FONTS.md, fontWeight: '600' },
-
-  section: { margin: SPACING.lg, marginBottom: 0, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg, padding: SPACING.lg, borderWidth: 1, borderColor: COLORS.border },
-  sectionLabel: { fontSize: FONTS.xs, fontWeight: FONTS.bold, color: COLORS.textDark, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: SPACING.md },
-
-  // Item
-  itemCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.divider || COLORS.border, gap: SPACING.sm },
+  section: { margin: SPACING.lg, marginBottom: 0, borderRadius: RADIUS.lg, padding: SPACING.lg },
+  sectionLabel: { fontSize: FONTS.xs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: SPACING.md },
+  itemCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: SPACING.sm, borderBottomWidth: 1, gap: SPACING.sm },
   itemInfo: { flex: 1 },
-  itemName: { fontSize: FONTS.sm, color: COLORS.textWhite, fontWeight: '500' },
-  itemPrice: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  itemCat: { fontSize: FONTS.xs, color: COLORS.textDark },
-
-  // Qty
+  itemName: { fontSize: FONTS.sm, fontWeight: '500' },
+  itemPrice: { fontSize: FONTS.xs, marginTop: 2 },
+  itemCat: { fontSize: FONTS.xs },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  qtyBtn: { width: 26, height: 26, borderRadius: 7, backgroundColor: COLORS.bgMedium, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.border },
-  qtyBtnAdd: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  qtyTextWrap: { minWidth: 32, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2 },
-  qtyText: { fontSize: FONTS.md, color: COLORS.textWhite, fontWeight: FONTS.bold, minWidth: 22, textAlign: 'center' },
-  qtyInput: { width: 44, height: 28, backgroundColor: '#2a2a4a', borderRadius: 7, borderWidth: 1.5, borderColor: COLORS.primary, color: '#FFFFFF', fontSize: 15, fontWeight: 'bold', textAlign: 'center', paddingHorizontal: 2, paddingVertical: 0 },
-
+  qtyBtn: { width: 26, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  qtyBtnAdd: {},
+  qtyInput: { width: 44, height: 28, borderRadius: 7, borderWidth: 1.5, fontSize: 15, fontWeight: 'bold', textAlign: 'center', paddingHorizontal: 2, paddingVertical: 0 },
   itemRight: { alignItems: 'flex-end', gap: 4 },
-  itemSubtotal: { fontSize: FONTS.sm, color: COLORS.primary, fontWeight: FONTS.bold },
-
-  selector: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: COLORS.bgMedium, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
-  selectorText: { flex: 1, fontSize: FONTS.md, color: COLORS.textMuted },
-  selectorTextActive: { color: COLORS.textWhite, fontWeight: '500' },
-
-  // Voucher
+  itemSubtotal: { fontSize: FONTS.sm, fontWeight: '700' },
+  selector: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1 },
+  selectorText: { flex: 1, fontSize: FONTS.md },
   voucherRow: { flexDirection: 'row', gap: SPACING.sm },
-  voucherInputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgMedium, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, height: 48 },
-  voucherInput: { flex: 1, color: COLORS.textWhite, fontSize: FONTS.md, paddingHorizontal: SPACING.sm, letterSpacing: 1.5, fontWeight: '600' },
-
-  // Diskon
-  toggle: { flexDirection: 'row', backgroundColor: COLORS.bgMedium, borderRadius: RADIUS.md, padding: 3, marginBottom: SPACING.sm },
+  voucherInputWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', borderRadius: RADIUS.md, borderWidth: 1, height: 48 },
+  voucherInput: { flex: 1, fontSize: FONTS.md, paddingHorizontal: SPACING.sm, letterSpacing: 1.5, fontWeight: '600' },
+  toggle: { flexDirection: 'row', borderRadius: RADIUS.md, padding: 3, marginBottom: SPACING.sm },
   toggleBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: RADIUS.sm },
-  toggleBtnActive: { backgroundColor: COLORS.primary },
-  toggleText: { fontSize: FONTS.sm, color: COLORS.textMuted, fontWeight: '500' },
-  toggleTextActive: { color: '#fff' },
+  toggleText: { fontSize: FONTS.sm, fontWeight: '500' },
   discountRow: { flexDirection: 'row', gap: SPACING.sm },
-  discountInput: { flex: 1, backgroundColor: COLORS.bgMedium, borderRadius: RADIUS.md, padding: SPACING.md, color: COLORS.textWhite, fontSize: FONTS.md, borderWidth: 1, borderColor: COLORS.border, height: 48 },
-  applyBtn: { backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.lg, justifyContent: 'center', height: 48, minWidth: 72, alignItems: 'center' },
+  discountInput: { flex: 1, borderRadius: RADIUS.md, padding: SPACING.md, fontSize: FONTS.md, borderWidth: 1, height: 48 },
+  applyBtn: { borderRadius: RADIUS.md, paddingHorizontal: SPACING.lg, justifyContent: 'center', height: 48, minWidth: 72, alignItems: 'center' },
   applyBtnText: { color: '#fff', fontSize: FONTS.sm, fontWeight: '600' },
-  discountBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: COLORS.success + '20', borderRadius: RADIUS.sm, padding: SPACING.sm, marginTop: SPACING.sm },
-  discountBadgeText: { flex: 1, fontSize: FONTS.sm, color: COLORS.success },
-
-  // Summary
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: COLORS.divider || COLORS.border },
-  summaryLabel: { fontSize: FONTS.md, color: COLORS.textMuted },
-  summaryValue: { fontSize: FONTS.md, color: COLORS.textLight, fontWeight: '500' },
-  totalRow: { borderBottomWidth: 0, paddingTop: SPACING.sm, marginTop: SPACING.sm },
-  totalLabel: { fontSize: FONTS.lg, color: COLORS.textWhite, fontWeight: FONTS.bold },
-  totalValue: { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: '900' },
-
-  // Checkout bar
-  checkoutBar: { position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: COLORS.bgMedium, borderTopWidth: 1, borderTopColor: COLORS.border, padding: SPACING.lg, gap: SPACING.sm, paddingBottom: 24 },
+  discountBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: RADIUS.sm, padding: SPACING.sm, marginTop: SPACING.sm },
+  discountBadgeText: { flex: 1, fontSize: FONTS.sm },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5, borderBottomWidth: 1 },
+  summaryLabel: { fontSize: FONTS.md },
+  summaryValue: { fontSize: FONTS.md, fontWeight: '500' },
+  totalRow: { borderBottomWidth: 0, paddingTop: SPACING.sm, marginTop: SPACING.sm, borderTopWidth: 1 },
+  totalLabel: { fontSize: FONTS.lg, fontWeight: '700' },
+  totalValue: { fontSize: FONTS.xl, fontWeight: '900' },
+  checkoutBar: { position: 'absolute', bottom: 0, left: 0, right: 0, padding: SPACING.lg, gap: SPACING.sm, paddingBottom: 24 },
   checkoutInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  checkoutLabel: { fontSize: FONTS.sm, color: COLORS.textMuted },
-  checkoutTotal: { fontSize: FONTS.xl, color: COLORS.textWhite, fontWeight: FONTS.bold },
-  checkoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingVertical: 14 },
-  checkoutBtnText: { color: '#fff', fontSize: FONTS.md, fontWeight: FONTS.bold },
-
-  // Modal
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
-  modalBox: { width: '100%', backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, padding: SPACING.xl, alignItems: 'center', gap: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
-  modalTitle: { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  modalText: { fontSize: FONTS.md, color: COLORS.textMuted, textAlign: 'center' },
+  checkoutLabel: { fontSize: FONTS.sm },
+  checkoutTotal: { fontSize: FONTS.xl, fontWeight: '700' },
+  checkoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, borderRadius: RADIUS.md, paddingVertical: 14 },
+  checkoutBtnText: { color: '#fff', fontSize: FONTS.md, fontWeight: '700' },
+  overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SPACING.xl },
+  modalBox: { width: '100%', borderRadius: RADIUS.xl, padding: SPACING.xl, alignItems: 'center', gap: SPACING.md, borderWidth: 1 },
+  modalTitle: { fontSize: FONTS.xl, fontWeight: '700' },
+  modalText: { fontSize: FONTS.md, textAlign: 'center' },
   modalBtns: { flexDirection: 'row', gap: SPACING.md, width: '100%', marginTop: SPACING.sm },
-  modalCancel: { flex: 1, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: COLORS.bgMedium, alignItems: 'center' },
-  modalConfirm: { flex: 1, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: COLORS.danger, alignItems: 'center' },
+  modalCancel: { flex: 1, padding: SPACING.md, borderRadius: RADIUS.md, alignItems: 'center' },
+  modalConfirm: { flex: 1, padding: SPACING.md, borderRadius: RADIUS.md, alignItems: 'center' },
 });
