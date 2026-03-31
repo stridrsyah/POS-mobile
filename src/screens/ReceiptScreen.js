@@ -1,14 +1,11 @@
 /**
- * src/screens/ReceiptScreen.js — Struk Transaksi
- * - Print PDF pakai pengaturan struk (template/font/paper)
- * - Cetak ke Bluetooth Thermal Printer
- * - Share via WhatsApp
+ * src/screens/ReceiptScreen.js — Struk Transaksi (Theme-Aware FIXED)
  */
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet,
-  ActivityIndicator, Share, Alert, Modal,
+  ActivityIndicator, Share, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,13 +13,11 @@ import * as Print   from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useCart } from '../context/CartContext';
 import { usePrinter } from '../context/PrinterContext';
+import { useTheme } from '../context/ThemeContext';
 import { receiptAPI, receiptSettingsAPI } from '../services/api';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
+import { FONTS, SPACING, RADIUS } from '../utils/theme';
 import { formatCurrency, formatDate } from '../utils/helpers';
 
-// Bluetooth dikelola oleh PrinterContext
-
-// ── Helper: build HTML struk tanpa nested template literal ───
 function buildHtml(receipt, settings) {
   const trx   = receipt.transaction || receipt;
   const items = receipt.items  || [];
@@ -51,7 +46,6 @@ function buildHtml(receipt, settings) {
   const isMinimal = template === 'minimal';
   const isDetail  = template === 'detail';
 
-  // ── CSS ──
   const css = [
     '*{margin:0;padding:0;box-sizing:border-box}',
     'body{font-family:Courier New,monospace;font-size:' + f.base + 'px;width:' + bodyWidth + ';margin:0 auto;padding:16px 8px}',
@@ -62,7 +56,6 @@ function buildHtml(receipt, settings) {
     '.muted{color:#555}',
   ].join('');
 
-  // ── Header toko ──
   let header = '';
   if (isMinimal) {
     header = '<div class="bold" style="font-size:' + f.store + 'px">' + storeName + '</div>';
@@ -74,7 +67,6 @@ function buildHtml(receipt, settings) {
     header += '<div class="divider"></div>';
   }
 
-  // ── Info transaksi ──
   const info = [
     '<div style="font-size:' + f.base + 'px;margin:2px 0">No   : ' + (trx.invoice_number || '-') + '</div>',
     '<div style="font-size:' + f.base + 'px;margin:2px 0">Tgl  : ' + formatDate(trx.transaction_date || trx.created_at) + '</div>',
@@ -82,7 +74,6 @@ function buildHtml(receipt, settings) {
     trx.customer_name ? '<div style="font-size:' + f.base + 'px;margin:2px 0">Cust : ' + trx.customer_name + '</div>' : '',
   ].join('');
 
-  // ── Items ──
   let itemsHtml = '';
   items.forEach(function(item) {
     var name = item.product_name || item.name || '';
@@ -97,21 +88,16 @@ function buildHtml(receipt, settings) {
     }
   });
 
-  // ── Ringkasan ──
   var subtotalHtml  = '<div class="row" style="font-size:' + f.base + 'px"><span>Subtotal</span><span>' + formatCurrency(trx.subtotal || 0) + '</span></div>';
   var discountHtml  = (showDiscount && Number(trx.discount || 0) > 0)
-    ? '<div class="row" style="font-size:' + f.base + 'px;color:green"><span>Diskon</span><span>-' + formatCurrency(trx.discount) + '</span></div>'
-    : '';
+    ? '<div class="row" style="font-size:' + f.base + 'px;color:green"><span>Diskon</span><span>-' + formatCurrency(trx.discount) + '</span></div>' : '';
   var taxHtml       = (showTax && Number(trx.tax || 0) > 0)
-    ? '<div class="row" style="font-size:' + f.base + 'px"><span>Pajak</span><span>' + formatCurrency(trx.tax) + '</span></div>'
-    : '';
+    ? '<div class="row" style="font-size:' + f.base + 'px"><span>Pajak</span><span>' + formatCurrency(trx.tax) + '</span></div>' : '';
   var totalHtml     = '<div class="row bold" style="font-size:' + f.total + 'px;border-top:2px solid #333;padding-top:4px;margin-top:4px"><span>TOTAL</span><span>' + formatCurrency(trx.total || 0) + '</span></div>';
   var bayarHtml     = '<div class="row" style="font-size:' + f.base + 'px"><span>Bayar (' + (trx.payment_method || '').toUpperCase() + ')</span><span>' + formatCurrency(trx.payment_amount || 0) + '</span></div>';
   var kembalianHtml = Number(trx.change_amount || 0) > 0
-    ? '<div class="row bold" style="font-size:' + f.base + 'px"><span>Kembalian</span><span>' + formatCurrency(trx.change_amount) + '</span></div>'
-    : '';
+    ? '<div class="row bold" style="font-size:' + f.base + 'px"><span>Kembalian</span><span>' + formatCurrency(trx.change_amount) + '</span></div>' : '';
 
-  // ── Footer ──
   var footerHtml = '';
   if (!isMinimal) {
     footerHtml  = '<div class="divider"></div>';
@@ -120,35 +106,22 @@ function buildHtml(receipt, settings) {
   }
 
   return '<!DOCTYPE html><html><head><meta charset="utf-8"/><style>' + css + '</style></head><body>' +
-    header + info +
-    '<div class="divider"></div>' + itemsHtml +
+    header + info + '<div class="divider"></div>' + itemsHtml +
     '<div class="divider"></div>' + subtotalHtml + discountHtml + taxHtml + totalHtml + bayarHtml + kembalianHtml +
-    footerHtml +
-    '<div style="height:20px"></div></body></html>';
+    footerHtml + '<div style="height:20px"></div></body></html>';
 }
 
 export default function ReceiptScreen({ navigation, route }) {
   const { clearCart } = useCart();
-  const {
-    connectedDevice,
-    isScanning,
-    isBtPrinting: isBtPrintingCtx,
-    scanDevices,
-    connectPrinter,
-    printReceipt,
-    testPrint,
-  } = usePrinter();
+  const { colors, isDark } = useTheme();
+  const { connectedDevice, printReceipt } = usePrinter();
   const { transactionId, invoiceNumber } = route.params || {};
 
-  const [receipt,      setReceipt]      = useState(null);
-  const [isLoading,    setIsLoading]    = useState(true);
-  const [isPrinting,   setIsPrinting]   = useState(false);
-  const [isSharing,    setIsSharing]    = useState(false);
-  const [isBtPrinting, setIsBtPrinting] = useState(false);
-  const [settings,     setSettings]     = useState(null);
-
-  const [btModalVisible, setBtModalVisible] = useState(false);
-
+  const [receipt,   setReceipt]   = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [isSharing,  setIsSharing]  = useState(false);
+  const [settings,  setSettings]  = useState(null);
   const autoPromptDone = useRef(false);
 
   useEffect(() => {
@@ -172,15 +145,11 @@ export default function ReceiptScreen({ navigation, route }) {
     if (!isLoading && receipt && !autoPromptDone.current) {
       autoPromptDone.current = true;
       setTimeout(() => {
-        Alert.alert(
-          '🖨️ Cetak Struk?',
-          'Transaksi berhasil! Ingin mencetak struk sekarang?',
-          [
-            { text: 'Tidak', style: 'cancel' },
-            { text: 'Print PDF', onPress: handlePrintPdf },
-            { text: '🔵 Thermal', onPress: handleThermalPrint },
-          ]
-        );
+        Alert.alert('🖨️ Cetak Struk?', 'Transaksi berhasil! Ingin mencetak struk sekarang?', [
+          { text: 'Tidak', style: 'cancel' },
+          { text: 'Print PDF', onPress: handlePrintPdf },
+          { text: '🔵 Thermal', onPress: handleThermalPrint },
+        ]);
       }, 600);
     }
   }, [isLoading, receipt]);
@@ -188,49 +157,31 @@ export default function ReceiptScreen({ navigation, route }) {
   const handlePrintPdf = async () => {
     setIsPrinting(true);
     try {
-      const html      = buildHtml(receipt, settings);
-      const { uri }   = await Print.printToFileAsync({ html, base64: false });
-      await Sharing.shareAsync(uri, {
-        mimeType:    'application/pdf',
-        dialogTitle: 'Print / Share Struk',
-        UTI:         'com.adobe.pdf',
-      });
-    } catch (e) {
-      Alert.alert('Gagal', 'Tidak bisa membuat PDF: ' + e.message);
-    }
+      const html    = buildHtml(receipt, settings);
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Print / Share Struk', UTI: 'com.adobe.pdf' });
+    } catch (e) { Alert.alert('Gagal', 'Tidak bisa membuat PDF: ' + e.message); }
     setIsPrinting(false);
   };
 
-  // scan dikelola PrinterContext — buka PrinterSettings lewat navigasi
-
-  // Cetak thermal pakai PrinterContext
   const handleThermalPrint = async () => {
     if (!receipt) return;
     const trx   = receipt?.transaction || receipt;
     const items = receipt?.items  || [];
     const store = receipt?.store  || {};
     const cfg   = settings || {};
-
     await printReceipt({
-      storeName:     cfg.store_name    || store.store_name    || 'KasirPOS',
-      storeAddress:  cfg.store_address || store.store_address || '',
-      storePhone:    cfg.store_phone   || store.store_phone   || '',
-      invoice:       trx?.invoice_number,
-      date:          formatDate(trx?.transaction_date || trx?.created_at),
-      cashier:       trx?.cashier_name,
-      items:         items.map(function(it) { return {
-        name:  it.product_name || it.name,
-        qty:   it.quantity,
-        price: it.price,
-      }; }),
-      subtotal:      Number(trx?.subtotal || 0),
-      discount:      Number(trx?.discount || 0),
-      tax:           Number(trx?.tax || 0),
-      total:         Number(trx?.total || 0),
+      storeName: cfg.store_name || store.store_name || 'KasirPOS',
+      storeAddress: cfg.store_address || store.store_address || '',
+      storePhone: cfg.store_phone || store.store_phone || '',
+      invoice: trx?.invoice_number, date: formatDate(trx?.transaction_date || trx?.created_at),
+      cashier: trx?.cashier_name,
+      items: items.map(it => ({ name: it.product_name || it.name, qty: it.quantity, price: it.price })),
+      subtotal: Number(trx?.subtotal || 0), discount: Number(trx?.discount || 0),
+      tax: Number(trx?.tax || 0), total: Number(trx?.total || 0),
       paymentMethod: (trx?.payment_method || 'tunai').toUpperCase(),
-      paymentAmount: Number(trx?.payment_amount || 0),
-      change:        Number(trx?.change_amount || 0),
-      notes:         cfg.footer_text || store.footer || 'Terima kasih!',
+      paymentAmount: Number(trx?.payment_amount || 0), change: Number(trx?.change_amount || 0),
+      notes: cfg.footer_text || store.footer || 'Terima kasih!',
     });
   };
 
@@ -241,7 +192,6 @@ export default function ReceiptScreen({ navigation, route }) {
     const items = receipt.items || [];
     const store = receipt.store || {};
     const cfg   = settings || {};
-
     let text = '🧾 *STRUK BELANJA*\n' + (cfg.store_name || store.store_name || 'KasirPOS') + '\n';
     text += '─────────────────\n';
     text += 'No: ' + trx.invoice_number + '\nTgl: ' + formatDate(trx.transaction_date) + '\n';
@@ -257,7 +207,6 @@ export default function ReceiptScreen({ navigation, route }) {
     text += 'Bayar: ' + formatCurrency(trx.payment_amount || 0) + '\n';
     if (Number(trx.change_amount || 0) > 0) text += 'Kembalian: ' + formatCurrency(trx.change_amount) + '\n';
     text += '─────────────────\n' + (cfg.footer_text || 'Terima kasih! 🙏');
-
     await Share.share({ message: text });
     setIsSharing(false);
   };
@@ -268,10 +217,10 @@ export default function ReceiptScreen({ navigation, route }) {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.bgDark }]} edges={['top']}>
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Memuat struk...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textMuted }]}>Memuat struk...</Text>
         </View>
       </SafeAreaView>
     );
@@ -283,236 +232,216 @@ export default function ReceiptScreen({ navigation, route }) {
   const cfg   = settings || {};
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bgDark }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, {
+        backgroundColor: colors.bgMedium,
+        borderBottomColor: colors.border,
+        borderBottomWidth: isDark ? 1 : 0.5,
+      }]}>
         <View style={{ width: 24 }} />
-        <Text style={styles.headerTitle}>Struk Pembayaran</Text>
+        <Text style={[styles.headerTitle, { color: colors.textWhite }]}>Struk Pembayaran</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          {/* Status printer — tap buka settings */}
           <TouchableOpacity
-            onPress={function() { navigation.navigate('PrinterSettings'); }}
-            style={{
-              flexDirection: 'row', alignItems: 'center', gap: 4,
-              backgroundColor: connectedDevice ? 'rgba(38,166,154,0.15)' : 'rgba(255,255,255,0.06)',
-              borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4,
-              borderWidth: 1,
-              borderColor: connectedDevice ? 'rgba(38,166,154,0.4)' : 'rgba(255,255,255,0.08)',
-            }}
+            onPress={() => navigation.navigate('PrinterSettings')}
+            style={[styles.printerBtn, {
+              backgroundColor: connectedDevice ? colors.success + '15' : colors.bgSurface,
+              borderColor: connectedDevice ? colors.success + '40' : colors.border,
+            }]}
           >
-            <Ionicons
-              name={connectedDevice ? 'print' : 'print-outline'}
-              size={14}
-              color={connectedDevice ? '#26a69a' : COLORS.textDark}
-            />
-            <Text style={{ fontSize: 10, color: connectedDevice ? '#26a69a' : COLORS.textDark, fontWeight: '600' }}>
+            <Ionicons name={connectedDevice ? 'print' : 'print-outline'} size={14}
+              color={connectedDevice ? colors.success : colors.textDark} />
+            <Text style={[styles.printerBtnTxt, { color: connectedDevice ? colors.success : colors.textDark }]}>
               {connectedDevice ? connectedDevice.name.substring(0, 10) : 'Printer'}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleNewTransaction}>
-            <Ionicons name="home-outline" size={22} color={COLORS.primary} />
+            <Ionicons name="home-outline" size={22} color={colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Sukses */}
-      <View style={styles.successBanner}>
-        <View style={styles.successIcon}>
-          <Ionicons name="checkmark-circle" size={36} color={COLORS.success} />
+      {/* Sukses Banner */}
+      <View style={[styles.successBanner, {
+        backgroundColor: colors.bgMedium,
+        borderBottomColor: colors.border,
+        borderBottomWidth: isDark ? 1 : 0.5,
+      }]}>
+        <View style={[styles.successIcon, { backgroundColor: colors.success + '20' }]}>
+          <Ionicons name="checkmark-circle" size={36} color={colors.success} />
         </View>
-        <Text style={styles.successTitle}>Transaksi Berhasil!</Text>
-        <Text style={styles.successSub}>{trx?.invoice_number || invoiceNumber || '-'}</Text>
+        <Text style={[styles.successTitle, { color: colors.textWhite }]}>Transaksi Berhasil!</Text>
+        <Text style={[styles.successSub, { color: colors.textMuted }]}>{trx?.invoice_number || invoiceNumber || '-'}</Text>
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 140 }}>
         {receipt && trx ? (
-          <View style={styles.receiptCard}>
-            {/* Info toko — pakai settings */}
+          <View style={[styles.receiptCard, {
+            backgroundColor: colors.bgCard,
+            borderColor: colors.border,
+            borderWidth: isDark ? 1 : 0.5,
+            ...(!isDark && { shadowColor: '#00000012', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 1, shadowRadius: 8, elevation: 3 }),
+          }]}>
+            {/* Info toko */}
             <View style={styles.storeInfo}>
-              <Text style={styles.storeName}>{cfg.store_name || store.store_name || 'KasirPOS'}</Text>
+              <Text style={[styles.storeName, { color: colors.textWhite }]}>{cfg.store_name || store.store_name || 'KasirPOS'}</Text>
               {!!(cfg.store_address || store.store_address) && (
-                <Text style={styles.storeDetail}>{cfg.store_address || store.store_address}</Text>
+                <Text style={[styles.storeDetail, { color: colors.textMuted }]}>{cfg.store_address || store.store_address}</Text>
               )}
               {!!(cfg.store_phone || store.store_phone) && (
-                <Text style={styles.storeDetail}>Telp: {cfg.store_phone || store.store_phone}</Text>
+                <Text style={[styles.storeDetail, { color: colors.textMuted }]}>Telp: {cfg.store_phone || store.store_phone}</Text>
               )}
-              {!!cfg.store_email   && <Text style={styles.storeDetail}>{cfg.store_email}</Text>}
-              {!!cfg.store_website && <Text style={[styles.storeDetail, { fontStyle: 'italic' }]}>{cfg.store_website}</Text>}
+              {!!cfg.store_email   && <Text style={[styles.storeDetail, { color: colors.textMuted }]}>{cfg.store_email}</Text>}
             </View>
-            <View style={styles.dashed} />
+            <View style={[styles.dashed, { borderTopColor: colors.border }]} />
 
             {[
-              { l: 'Tanggal',  v: formatDate(trx.transaction_date || trx.created_at) },
-              { l: 'Kasir',    v: trx.cashier_name || '-' },
+              { l: 'Tanggal', v: formatDate(trx.transaction_date || trx.created_at) },
+              { l: 'Kasir',   v: trx.cashier_name || '-' },
               trx.customer_name ? { l: 'Pelanggan', v: trx.customer_name } : null,
             ].filter(Boolean).map(r => (
               <View key={r.l} style={styles.infoRow}>
-                <Text style={styles.infoLabel}>{r.l}</Text>
-                <Text style={styles.infoValue}>{r.v}</Text>
+                <Text style={[styles.infoLabel, { color: colors.textMuted }]}>{r.l}</Text>
+                <Text style={[styles.infoValue, { color: colors.textLight }]}>{r.v}</Text>
               </View>
             ))}
-            <View style={styles.dashed} />
+            <View style={[styles.dashed, { borderTopColor: colors.border }]} />
 
             {items.map((item, i) => (
               <View key={String(i)} style={styles.itemBlock}>
-                <Text style={styles.itemName}>{item.product_name || item.name}</Text>
+                <Text style={[styles.itemName, { color: colors.textWhite }]}>{item.product_name || item.name}</Text>
                 <View style={styles.itemRow}>
-                  <Text style={styles.itemQty}>{item.quantity} × {formatCurrency(item.price)}</Text>
-                  <Text style={styles.itemSub}>{formatCurrency(item.subtotal)}</Text>
+                  <Text style={[styles.itemQty, { color: colors.textMuted }]}>{item.quantity} × {formatCurrency(item.price)}</Text>
+                  <Text style={[styles.itemSub, { color: colors.textLight }]}>{formatCurrency(item.subtotal)}</Text>
                 </View>
               </View>
             ))}
-            <View style={styles.dashed} />
+            <View style={[styles.dashed, { borderTopColor: colors.border }]} />
 
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(trx.subtotal || 0)}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Subtotal</Text>
+              <Text style={[styles.summaryValue, { color: colors.textLight }]}>{formatCurrency(trx.subtotal || 0)}</Text>
             </View>
             {(cfg.show_discount !== 0 && cfg.show_discount !== false) && Number(trx.discount || 0) > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: COLORS.success }]}>Diskon</Text>
-                <Text style={[styles.summaryValue, { color: COLORS.success }]}>-{formatCurrency(trx.discount)}</Text>
+                <Text style={[styles.summaryLabel, { color: colors.success }]}>Diskon</Text>
+                <Text style={[styles.summaryValue, { color: colors.success }]}>-{formatCurrency(trx.discount)}</Text>
               </View>
             )}
             {(cfg.show_tax === 1 || cfg.show_tax === true) && Number(trx.tax || 0) > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={styles.summaryLabel}>Pajak</Text>
-                <Text style={styles.summaryValue}>{formatCurrency(trx.tax)}</Text>
+                <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Pajak</Text>
+                <Text style={[styles.summaryValue, { color: colors.textLight }]}>{formatCurrency(trx.tax)}</Text>
               </View>
             )}
-            <View style={[styles.summaryRow, styles.totalRow]}>
-              <Text style={styles.totalLabel}>TOTAL</Text>
-              <Text style={styles.totalValue}>{formatCurrency(trx.total || 0)}</Text>
+            <View style={[styles.summaryRow, styles.totalRow, { borderTopColor: colors.border }]}>
+              <Text style={[styles.totalLabel, { color: colors.textWhite }]}>TOTAL</Text>
+              <Text style={[styles.totalValue, { color: colors.primary }]}>{formatCurrency(trx.total || 0)}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Bayar ({(trx.payment_method || '').toUpperCase()})</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(trx.payment_amount || 0)}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textMuted }]}>Bayar ({(trx.payment_method || '').toUpperCase()})</Text>
+              <Text style={[styles.summaryValue, { color: colors.textLight }]}>{formatCurrency(trx.payment_amount || 0)}</Text>
             </View>
             {Number(trx.change_amount || 0) > 0 && (
               <View style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { fontWeight: 'bold' }]}>Kembalian</Text>
-                <Text style={[styles.summaryValue, { color: COLORS.primary, fontWeight: 'bold' }]}>
-                  {formatCurrency(trx.change_amount)}
-                </Text>
+                <Text style={[styles.summaryLabel, { color: colors.textWhite, fontWeight: '700' }]}>Kembalian</Text>
+                <Text style={[styles.summaryValue, { color: colors.primary, fontWeight: '700' }]}>{formatCurrency(trx.change_amount)}</Text>
               </View>
             )}
-            <View style={styles.dashed} />
-            <Text style={styles.footer}>{cfg.footer_text || store.footer || 'Terima kasih atas kunjungan Anda!'}</Text>
-            {!!cfg.store_website && (
-              <Text style={[styles.footer, { marginTop: 2, fontSize: FONTS.xs - 1 }]}>{cfg.store_website}</Text>
-            )}
+            <View style={[styles.dashed, { borderTopColor: colors.border }]} />
+            <Text style={[styles.footer, { color: colors.textMuted }]}>{cfg.footer_text || store.footer || 'Terima kasih atas kunjungan Anda!'}</Text>
           </View>
         ) : (
           <View style={styles.noReceipt}>
-            <Ionicons name="alert-circle-outline" size={40} color={COLORS.textDark} />
-            <Text style={styles.noReceiptText}>Data struk tidak tersedia</Text>
+            <Ionicons name="alert-circle-outline" size={40} color={colors.textDark} />
+            <Text style={[styles.noReceiptText, { color: colors.textMuted }]}>Data struk tidak tersedia</Text>
           </View>
         )}
       </ScrollView>
 
       {/* Action bar */}
-      <View style={styles.actionBar}>
+      <View style={[styles.actionBar, {
+        backgroundColor: colors.bgMedium,
+        borderTopColor: colors.border,
+        borderTopWidth: isDark ? 1 : 0.5,
+      }]}>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.btnSecondary]}
-          onPress={handleShareText}
-          disabled={isSharing || !receipt}
+          style={[styles.actionBtn, { backgroundColor: colors.primary + '20', borderWidth: 1, borderColor: colors.primary }]}
+          onPress={handleShareText} disabled={isSharing || !receipt}
         >
           {isSharing
-            ? <ActivityIndicator size="small" color={COLORS.primary} />
-            : <Ionicons name="share-social-outline" size={18} color={COLORS.primary} />}
-          <Text style={styles.btnSecondaryText}>Bagikan</Text>
+            ? <ActivityIndicator size="small" color={colors.primary} />
+            : <Ionicons name="share-social-outline" size={18} color={colors.primary} />}
+          <Text style={[styles.btnSecondaryText, { color: colors.primary }]}>Bagikan</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionBtn, styles.btnSecondary]}
-          onPress={handlePrintPdf}
-          disabled={isPrinting || !receipt}
+          style={[styles.actionBtn, { backgroundColor: colors.primary + '20', borderWidth: 1, borderColor: colors.primary }]}
+          onPress={handlePrintPdf} disabled={isPrinting || !receipt}
         >
           {isPrinting
-            ? <ActivityIndicator size="small" color={COLORS.primary} />
-            : <Ionicons name="print-outline" size={18} color={COLORS.primary} />}
-          <Text style={styles.btnSecondaryText}>Print PDF</Text>
+            ? <ActivityIndicator size="small" color={colors.primary} />
+            : <Ionicons name="print-outline" size={18} color={colors.primary} />}
+          <Text style={[styles.btnSecondaryText, { color: colors.primary }]}>Print PDF</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionBtn, styles.btnBluetooth]}
-          onPress={handleThermalPrint}
-          disabled={!receipt}
+          style={[styles.actionBtn, { backgroundColor: '#2196F3' }]}
+          onPress={handleThermalPrint} disabled={!receipt}
         >
-          <Ionicons
-            name={connectedDevice ? 'print' : 'print-outline'}
-            size={18} color="#fff"
-          />
-          <Text style={styles.btnBluetoothText}>
-            {connectedDevice ? 'Cetak' : 'Thermal'}
-          </Text>
+          <Ionicons name={connectedDevice ? 'print' : 'print-outline'} size={18} color="#fff" />
+          <Text style={styles.btnWhiteText}>{connectedDevice ? 'Cetak' : 'Thermal'}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.actionBtn, styles.btnPrimary]}
+          style={[styles.actionBtn, styles.btnWide, { backgroundColor: colors.primary }]}
           onPress={handleNewTransaction}
         >
           <Ionicons name="add-circle-outline" size={18} color="#fff" />
-          <Text style={styles.btnPrimaryText}>Baru</Text>
+          <Text style={styles.btnWhiteText}>Baru</Text>
         </TouchableOpacity>
       </View>
-
-      {/* Modal BT dipindah ke PrinterSettingsScreen */}
-
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container:        { flex: 1, backgroundColor: COLORS.bgDark },
-  loading:          { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
-  loadingText:      { color: COLORS.textMuted, fontSize: FONTS.md },
-  header:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md, backgroundColor: COLORS.bgMedium, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  headerTitle:      { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  successBanner:    { alignItems: 'center', paddingVertical: SPACING.xl, backgroundColor: COLORS.bgMedium, gap: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  successIcon:      { width: 64, height: 64, borderRadius: 32, backgroundColor: COLORS.success + '20', alignItems: 'center', justifyContent: 'center' },
-  successTitle:     { fontSize: FONTS.xl, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  successSub:       { fontSize: FONTS.sm, color: COLORS.textMuted },
-  receiptCard:      { margin: SPACING.lg, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.xl, padding: SPACING.xl, borderWidth: 1, borderColor: COLORS.border, ...SHADOW.sm },
-  storeInfo:        { alignItems: 'center', marginBottom: SPACING.md },
-  storeName:        { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite, textAlign: 'center' },
-  storeDetail:      { fontSize: FONTS.xs, color: COLORS.textMuted, textAlign: 'center', marginTop: 2 },
-  dashed:           { borderTopWidth: 1, borderTopColor: COLORS.border, borderStyle: 'dashed', marginVertical: SPACING.md },
-  infoRow:          { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
-  infoLabel:        { fontSize: FONTS.xs, color: COLORS.textMuted, width: 80 },
-  infoValue:        { fontSize: FONTS.xs, color: COLORS.textLight, flex: 1, textAlign: 'right' },
-  itemBlock:        { marginBottom: SPACING.sm },
-  itemName:         { fontSize: FONTS.sm, color: COLORS.textWhite, fontWeight: FONTS.medium },
-  itemRow:          { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
-  itemQty:          { fontSize: FONTS.xs, color: COLORS.textMuted },
-  itemSub:          { fontSize: FONTS.sm, color: COLORS.textLight, fontWeight: FONTS.medium },
-  summaryRow:       { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  summaryLabel:     { fontSize: FONTS.sm, color: COLORS.textMuted },
-  summaryValue:     { fontSize: FONTS.sm, color: COLORS.textLight },
-  totalRow:         { paddingTop: SPACING.sm, marginTop: SPACING.sm, borderTopWidth: 2, borderTopColor: COLORS.border },
-  totalLabel:       { fontSize: FONTS.lg, color: COLORS.textWhite, fontWeight: FONTS.bold },
-  totalValue:       { fontSize: FONTS.xl, color: COLORS.primary, fontWeight: FONTS.black },
-  footer:           { textAlign: 'center', fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: SPACING.sm, fontStyle: 'italic' },
-  noReceipt:        { alignItems: 'center', padding: SPACING.xl, gap: SPACING.md },
-  noReceiptText:    { color: COLORS.textMuted, fontSize: FONTS.md },
-  actionBar:        { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', gap: 6, backgroundColor: COLORS.bgMedium, borderTopWidth: 1, borderTopColor: COLORS.border, paddingHorizontal: SPACING.md, paddingVertical: SPACING.md, paddingBottom: 24 },
-  actionBtn:        { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: RADIUS.md },
-  btnSecondary:     { backgroundColor: COLORS.primary + '20', borderWidth: 1, borderColor: COLORS.primary },
-  btnSecondaryText: { fontSize: 11, color: COLORS.primary, fontWeight: FONTS.semibold },
-  btnBluetooth:     { backgroundColor: '#2196F3' },
-  btnBluetoothText: { fontSize: 11, color: '#fff', fontWeight: FONTS.bold },
-  btnPrimary:       { backgroundColor: COLORS.primary, flex: 1.2 },
-  btnPrimaryText:   { fontSize: 11, color: '#fff', fontWeight: FONTS.bold },
-  modalOverlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalBox:         { backgroundColor: COLORS.bgMedium, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.xl, paddingBottom: 40, maxHeight: '70%' },
-  modalHeader:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.lg },
-  modalTitle:       { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  modalCenter:      { alignItems: 'center', paddingVertical: SPACING.xl, gap: SPACING.md },
-  modalSubText:     { color: COLORS.textMuted, fontSize: FONTS.sm },
-  rescanBtn:        { marginTop: SPACING.md, backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.xl, paddingVertical: SPACING.sm },
-  rescanBtnText:    { color: '#fff', fontWeight: FONTS.bold },
-  deviceRow:        { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  deviceName:       { fontSize: FONTS.md, color: COLORS.textWhite, fontWeight: FONTS.medium },
-  deviceAddr:       { fontSize: FONTS.xs, color: COLORS.textDark },
+  container:     { flex: 1 },
+  loading:       { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
+  loadingText:   { fontSize: FONTS.md },
+  header:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md },
+  headerTitle:   { fontSize: FONTS.lg, fontWeight: '700' },
+  printerBtn:    { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, borderWidth: 1 },
+  printerBtnTxt: { fontSize: 10, fontWeight: '600' },
+  successBanner: { alignItems: 'center', paddingVertical: SPACING.xl, gap: SPACING.sm },
+  successIcon:   { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+  successTitle:  { fontSize: FONTS.xl, fontWeight: '700' },
+  successSub:    { fontSize: FONTS.sm },
+  receiptCard:   { margin: SPACING.lg, borderRadius: RADIUS.xl, padding: SPACING.xl },
+  storeInfo:     { alignItems: 'center', marginBottom: SPACING.md },
+  storeName:     { fontSize: FONTS.lg, fontWeight: '700', textAlign: 'center' },
+  storeDetail:   { fontSize: FONTS.xs, textAlign: 'center', marginTop: 2 },
+  dashed:        { borderTopWidth: 1, borderStyle: 'dashed', marginVertical: SPACING.md },
+  infoRow:       { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
+  infoLabel:     { fontSize: FONTS.xs, width: 80 },
+  infoValue:     { fontSize: FONTS.xs, flex: 1, textAlign: 'right' },
+  itemBlock:     { marginBottom: SPACING.sm },
+  itemName:      { fontSize: FONTS.sm, fontWeight: '500' },
+  itemRow:       { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
+  itemQty:       { fontSize: FONTS.xs },
+  itemSub:       { fontSize: FONTS.sm, fontWeight: '500' },
+  summaryRow:    { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  summaryLabel:  { fontSize: FONTS.sm },
+  summaryValue:  { fontSize: FONTS.sm },
+  totalRow:      { paddingTop: SPACING.sm, marginTop: SPACING.sm, borderTopWidth: 2, borderBottomWidth: 0 },
+  totalLabel:    { fontSize: FONTS.lg, fontWeight: '700' },
+  totalValue:    { fontSize: FONTS.xl, fontWeight: '900' },
+  footer:        { textAlign: 'center', fontSize: FONTS.xs, marginTop: SPACING.sm, fontStyle: 'italic' },
+  noReceipt:     { alignItems: 'center', padding: SPACING.xl, gap: SPACING.md },
+  noReceiptText: { fontSize: FONTS.md },
+  actionBar:     { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', gap: 6, paddingHorizontal: SPACING.md, paddingVertical: SPACING.md, paddingBottom: 24 },
+  actionBtn:     { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 10, borderRadius: RADIUS.md },
+  btnWide:       { flex: 1.2 },
+  btnSecondaryText: { fontSize: 11, fontWeight: '600' },
+  btnWhiteText:  { fontSize: 11, color: '#fff', fontWeight: '700' },
 });

@@ -1,5 +1,5 @@
 /**
- * src/screens/SuppliersScreen.js — Data Supplier
+ * src/screens/SuppliersScreen.js — Data Supplier (Theme-Aware FIXED)
  */
 
 import React, { useState, useCallback } from 'react';
@@ -7,12 +7,15 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, ActivityIndicator, Alert, Modal, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { suppliersAPI } from '../services/api';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
+import { useTheme } from '../context/ThemeContext';
+import { FONTS, SPACING, RADIUS } from '../utils/theme';
 
 export default function SuppliersScreen({ navigation }) {
+  const { colors, isDark } = useTheme();
   const [suppliers, setSuppliers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm]   = useState(false);
@@ -31,8 +34,9 @@ export default function SuppliersScreen({ navigation }) {
 
   const openForm = (item = null) => {
     setEditItem(item);
-    setForm(item ? { name: item.name || '', phone: item.phone || '', email: item.email || '', address: item.address || '' }
-                 : { name: '', phone: '', email: '', address: '' });
+    setForm(item
+      ? { name: item.name || '', phone: item.phone || '', email: item.email || '', address: item.address || '' }
+      : { name: '', phone: '', email: '', address: '' });
     setShowForm(true);
   };
 
@@ -59,72 +63,87 @@ export default function SuppliersScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => (
-    <View style={styles.card}>
-      <View style={styles.iconBox}>
-        <Ionicons name="business-outline" size={22} color={COLORS.warning} />
+    <View style={[styles.card, {
+      backgroundColor: colors.bgCard,
+      borderColor: colors.border,
+      ...(!isDark && { shadowColor: '#00000012', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 2 }),
+    }]}>
+      <View style={[styles.iconBox, { backgroundColor: colors.warning + '20' }]}>
+        <Ionicons name="business-outline" size={22} color={colors.warning} />
       </View>
       <View style={styles.info}>
-        <Text style={styles.name}>{item.name}</Text>
-        {item.phone   ? <Text style={styles.sub}>📞 {item.phone}</Text>   : null}
-        {item.email   ? <Text style={styles.sub}>✉️ {item.email}</Text>   : null}
-        {item.address ? <Text style={styles.sub}>📍 {item.address}</Text> : null}
+        <Text style={[styles.name, { color: colors.textWhite }]}>{item.name}</Text>
+        {item.phone   ? <Text style={[styles.sub, { color: colors.textMuted }]}>📞 {item.phone}</Text>   : null}
+        {item.email   ? <Text style={[styles.sub, { color: colors.textMuted }]}>✉️ {item.email}</Text>   : null}
+        {item.address ? <Text style={[styles.sub, { color: colors.textMuted }]}>📍 {item.address}</Text> : null}
         {item.product_count != null && (
-          <Text style={styles.productCount}>{item.product_count} produk</Text>
+          <Text style={[styles.productCount, { color: colors.primary }]}>{item.product_count} produk</Text>
         )}
       </View>
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => openForm(item)}>
-          <Ionicons name="create-outline" size={18} color={COLORS.info} />
+        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.bgSurface }]} onPress={() => openForm(item)}>
+          <Ionicons name="create-outline" size={18} color={colors.info} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(item)}>
-          <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.bgSurface }]} onPress={() => handleDelete(item)}>
+          <Ionicons name="trash-outline" size={18} color={colors.danger} />
         </TouchableOpacity>
       </View>
     </View>
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bgDark }]} edges={['top']}>
+      <View style={[styles.header, {
+        backgroundColor: colors.bgMedium,
+        borderBottomColor: colors.border,
+        borderBottomWidth: isDark ? 1 : 0.5,
+      }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textWhite} />
+          <Ionicons name="arrow-back" size={24} color={colors.textWhite} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Supplier</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={() => openForm()}>
+        <Text style={[styles.headerTitle, { color: colors.textWhite }]}>Supplier</Text>
+        <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={() => openForm()}>
           <Ionicons name="add" size={22} color="#fff" />
         </TouchableOpacity>
       </View>
 
       {isLoading ? (
-        <View style={styles.loading}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+        <View style={styles.loading}><ActivityIndicator size="large" color={colors.primary} /></View>
       ) : (
         <FlatList
           data={suppliers}
           renderItem={renderItem}
           keyExtractor={item => item.id.toString()}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: 60 }]}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="business-outline" size={48} color={COLORS.textDark} />
-              <Text style={styles.emptyText}>Belum ada supplier</Text>
+              <Ionicons name="business-outline" size={48} color={colors.textDark} />
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>Belum ada supplier</Text>
             </View>
           }
         />
       )}
 
       <Modal visible={showForm} animationType="slide" onRequestClose={() => setShowForm(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
+        <SafeAreaView style={[styles.modal, { backgroundColor: colors.bgDark }]} edges={['top']}>
+          <View style={[styles.modalHeader, {
+            backgroundColor: colors.bgMedium,
+            borderBottomColor: colors.border,
+            borderBottomWidth: isDark ? 1 : 0.5,
+          }]}>
             <TouchableOpacity onPress={() => setShowForm(false)}>
-              <Ionicons name="close" size={24} color={COLORS.textWhite} />
+              <Ionicons name="close" size={24} color={colors.textWhite} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>{editItem ? 'Edit Supplier' : 'Tambah Supplier'}</Text>
+            <Text style={[styles.modalTitle, { color: colors.textWhite }]}>
+              {editItem ? 'Edit Supplier' : 'Tambah Supplier'}
+            </Text>
             <TouchableOpacity onPress={handleSave} disabled={isSaving}>
-              {isSaving ? <ActivityIndicator color={COLORS.primary} size="small" />
-                        : <Text style={styles.saveText}>Simpan</Text>}
+              {isSaving
+                ? <ActivityIndicator color={colors.primary} size="small" />
+                : <Text style={[styles.saveText, { color: colors.primary }]}>Simpan</Text>}
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.modalBody}>
+          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
             {[
               { key: 'name',    label: 'Nama Supplier *', keyboard: 'default' },
               { key: 'phone',   label: 'Telepon',         keyboard: 'phone-pad' },
@@ -132,70 +151,51 @@ export default function SuppliersScreen({ navigation }) {
               { key: 'address', label: 'Alamat',          keyboard: 'default' },
             ].map(f => (
               <View key={f.key} style={styles.formGroup}>
-                <Text style={styles.formLabel}>{f.label}</Text>
+                <Text style={[styles.formLabel, { color: colors.textLight }]}>{f.label}</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, {
+                    backgroundColor: colors.bgCard,
+                    color: colors.textWhite,
+                    borderColor: colors.border,
+                  }]}
                   value={form[f.key]}
                   onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
                   keyboardType={f.keyboard}
-                  placeholderTextColor={COLORS.textDark}
-                  placeholder={`Masukkan ${f.label.replace(' *','')}`}
+                  placeholderTextColor={colors.textDark}
+                  placeholder={`Masukkan ${f.label.replace(' *', '')}`}
                 />
               </View>
             ))}
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgDark },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 50, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md,
-    backgroundColor: COLORS.bgMedium,
-  },
-  headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  addBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',
-  },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: SPACING.lg, paddingBottom: 60 },
-  card: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.md,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    marginBottom: SPACING.md, padding: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border, ...SHADOW.sm,
-  },
-  iconBox: {
-    width: 44, height: 44, borderRadius: 12,
-    backgroundColor: COLORS.warning + '20', alignItems: 'center', justifyContent: 'center',
-  },
-  info: { flex: 1, gap: 3 },
-  name: { fontSize: FONTS.md, color: COLORS.textWhite, fontWeight: FONTS.semibold },
-  sub: { fontSize: FONTS.xs, color: COLORS.textMuted },
-  productCount: { fontSize: FONTS.xs, color: COLORS.primary, marginTop: 2 },
-  actions: { flexDirection: 'row', gap: SPACING.sm, alignSelf: 'center' },
-  actionBtn: { padding: 8, borderRadius: RADIUS.sm, backgroundColor: COLORS.bgMedium },
-  empty: { alignItems: 'center', paddingTop: 60, gap: SPACING.md },
-  emptyText: { color: COLORS.textMuted, fontSize: FONTS.md },
-  modal: { flex: 1, backgroundColor: COLORS.bgDark },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 50, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md,
-    backgroundColor: COLORS.bgMedium,
-  },
-  modalTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  saveText: { color: COLORS.primary, fontSize: FONTS.md, fontWeight: FONTS.bold },
-  modalBody: { padding: SPACING.lg },
-  formGroup: { marginBottom: SPACING.md },
-  formLabel: { fontSize: FONTS.sm, color: COLORS.textLight, marginBottom: 6, fontWeight: FONTS.medium },
-  formInput: {
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
-    padding: SPACING.md, color: COLORS.textWhite, fontSize: FONTS.md,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  container:    { flex: 1 },
+  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md },
+  headerTitle:  { fontSize: FONTS.lg, fontWeight: '700' },
+  addBtn:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  loading:      { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  list:         { padding: SPACING.lg },
+  card:         { flexDirection: 'row', alignItems: 'flex-start', gap: SPACING.md, borderRadius: RADIUS.lg, marginBottom: SPACING.md, padding: SPACING.md, borderWidth: 1 },
+  iconBox:      { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  info:         { flex: 1, gap: 3 },
+  name:         { fontSize: FONTS.md, fontWeight: '600' },
+  sub:          { fontSize: FONTS.xs },
+  productCount: { fontSize: FONTS.xs, marginTop: 2 },
+  actions:      { flexDirection: 'row', gap: SPACING.sm, alignSelf: 'center' },
+  actionBtn:    { padding: 8, borderRadius: RADIUS.sm },
+  empty:        { alignItems: 'center', paddingTop: 60, gap: SPACING.md },
+  emptyText:    { fontSize: FONTS.md },
+  modal:        { flex: 1 },
+  modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md },
+  modalTitle:   { fontSize: FONTS.lg, fontWeight: '700' },
+  saveText:     { fontSize: FONTS.md, fontWeight: '700' },
+  modalBody:    { padding: SPACING.lg },
+  formGroup:    { marginBottom: SPACING.md },
+  formLabel:    { fontSize: FONTS.sm, marginBottom: 6, fontWeight: '500' },
+  formInput:    { borderRadius: RADIUS.md, padding: SPACING.md, fontSize: FONTS.md, borderWidth: 1, height: 50 },
 });

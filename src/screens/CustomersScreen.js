@@ -1,11 +1,5 @@
 /**
- * src/screens/CustomersScreen.js — Data Pelanggan
- * ============================================================
- * Fitur:
- * - Daftar pelanggan dengan search
- * - Tambah/Edit/Hapus pelanggan
- * - Mode pilih pelanggan (dari CartScreen)
- * ============================================================
+ * src/screens/CustomersScreen.js — Data Pelanggan (Theme-Aware FIXED)
  */
 
 import React, { useState, useCallback } from 'react';
@@ -13,16 +7,18 @@ import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
   TextInput, ActivityIndicator, Alert, Modal, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { customersAPI } from '../services/api';
 import { useCart } from '../context/CartContext';
-import { COLORS, FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
+import { useTheme } from '../context/ThemeContext';
+import { FONTS, SPACING, RADIUS, SHADOW } from '../utils/theme';
 
 export default function CustomersScreen({ navigation, route }) {
-  // selectMode: dipakai saat dipanggil dari CartScreen untuk pilih pelanggan
   const { selectMode } = route.params || {};
-  const { setCustomer } = useCart(); // Gunakan context langsung, bukan callback di params
+  const { setCustomer } = useCart();
+  const { colors, isDark } = useTheme();
 
   const [customers, setCustomers] = useState([]);
   const [filtered, setFiltered]   = useState([]);
@@ -56,8 +52,9 @@ export default function CustomersScreen({ navigation, route }) {
 
   const openForm = (item = null) => {
     setEditItem(item);
-    setForm(item ? { name: item.name || '', phone: item.phone || '', email: item.email || '', address: item.address || '' }
-                 : { name: '', phone: '', email: '', address: '' });
+    setForm(item
+      ? { name: item.name || '', phone: item.phone || '', email: item.email || '', address: item.address || '' }
+      : { name: '', phone: '', email: '', address: '' });
     setShowForm(true);
   };
 
@@ -67,12 +64,8 @@ export default function CustomersScreen({ navigation, route }) {
     const result = editItem
       ? await customersAPI.update(editItem.id, form)
       : await customersAPI.create(form);
-    if (result.success) {
-      setShowForm(false);
-      loadData();
-    } else {
-      Alert.alert('Gagal', result.error || 'Gagal menyimpan');
-    }
+    if (result.success) { setShowForm(false); loadData(); }
+    else Alert.alert('Gagal', result.error || 'Gagal menyimpan');
     setIsSaving(false);
   };
 
@@ -89,91 +82,109 @@ export default function CustomersScreen({ navigation, route }) {
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
-      style={styles.card}
+      style={[styles.card, {
+        backgroundColor: colors.bgCard,
+        borderColor: colors.border,
+        ...(!isDark && { shadowColor: '#00000012', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 1, shadowRadius: 4, elevation: 2 }),
+      }]}
       onPress={() => {
         if (selectMode) { setCustomer(item); navigation.goBack(); }
       }}
       activeOpacity={selectMode ? 0.7 : 1}
     >
-      <View style={styles.avatarCircle}>
-        <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+      <View style={[styles.avatarCircle, { backgroundColor: colors.primary + '22' }]}>
+        <Text style={[styles.avatarText, { color: colors.primary }]}>{item.name.charAt(0).toUpperCase()}</Text>
       </View>
       <View style={styles.info}>
-        <Text style={styles.name}>{item.name}</Text>
-        {item.phone ? <Text style={styles.sub}>{item.phone}</Text> : null}
-        {item.email ? <Text style={styles.sub}>{item.email}</Text> : null}
+        <Text style={[styles.name, { color: colors.textWhite }]}>{item.name}</Text>
+        {item.phone ? <Text style={[styles.sub, { color: colors.textMuted }]}>{item.phone}</Text> : null}
+        {item.email ? <Text style={[styles.sub, { color: colors.textMuted }]}>{item.email}</Text> : null}
       </View>
       {!selectMode && (
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => openForm(item)}>
-            <Ionicons name="create-outline" size={18} color={COLORS.info} />
+          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.bgSurface }]} onPress={() => openForm(item)}>
+            <Ionicons name="create-outline" size={18} color={colors.info} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => handleDelete(item)}>
-            <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
+          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.bgSurface }]} onPress={() => handleDelete(item)}>
+            <Ionicons name="trash-outline" size={18} color={colors.danger} />
           </TouchableOpacity>
         </View>
       )}
-      {selectMode && <Ionicons name="chevron-forward" size={18} color={COLORS.textDark} />}
+      {selectMode && <Ionicons name="chevron-forward" size={18} color={colors.textDark} />}
     </TouchableOpacity>
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.bgDark }]} edges={['top']}>
+      <View style={[styles.header, {
+        backgroundColor: colors.bgMedium,
+        borderBottomColor: colors.border,
+        borderBottomWidth: isDark ? 1 : 0.5,
+      }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color={COLORS.textWhite} />
+          <Ionicons name="arrow-back" size={24} color={colors.textWhite} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{selectMode ? 'Pilih Pelanggan' : 'Pelanggan'}</Text>
+        <Text style={[styles.headerTitle, { color: colors.textWhite }]}>
+          {selectMode ? 'Pilih Pelanggan' : 'Pelanggan'}
+        </Text>
         {!selectMode && (
-          <TouchableOpacity style={styles.addBtn} onPress={() => openForm()}>
+          <TouchableOpacity style={[styles.addBtn, { backgroundColor: colors.primary }]} onPress={() => openForm()}>
             <Ionicons name="add" size={22} color="#fff" />
           </TouchableOpacity>
         )}
         {selectMode && <View style={{ width: 24 }} />}
       </View>
 
-      <View style={styles.searchSection}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={18} color={COLORS.textMuted} />
+      <View style={[styles.searchSection, { backgroundColor: colors.bgMedium }]}>
+        <View style={[styles.searchBar, { backgroundColor: colors.bgInput, borderColor: colors.border }]}>
+          <Ionicons name="search-outline" size={18} color={colors.textMuted} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.textWhite }]}
             placeholder="Cari nama atau telepon..."
-            placeholderTextColor={COLORS.textDark}
-            value={search} onChangeText={setSearch}
+            placeholderTextColor={colors.textDark}
+            value={search}
+            onChangeText={setSearch}
           />
         </View>
       </View>
 
       {isLoading ? (
-        <View style={styles.loading}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+        <View style={styles.loading}><ActivityIndicator size="large" color={colors.primary} /></View>
       ) : (
         <FlatList
           data={filtered}
           renderItem={renderItem}
           keyExtractor={item => item.id.toString()}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, { paddingBottom: 60 }]}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Ionicons name="people-outline" size={48} color={COLORS.textDark} />
-              <Text style={styles.emptyText}>Belum ada pelanggan</Text>
+              <Ionicons name="people-outline" size={48} color={colors.textDark} />
+              <Text style={[styles.emptyText, { color: colors.textMuted }]}>Belum ada pelanggan</Text>
             </View>
           }
         />
       )}
 
       <Modal visible={showForm} animationType="slide" onRequestClose={() => setShowForm(false)}>
-        <View style={styles.modal}>
-          <View style={styles.modalHeader}>
+        <SafeAreaView style={[styles.modal, { backgroundColor: colors.bgDark }]} edges={['top']}>
+          <View style={[styles.modalHeader, {
+            backgroundColor: colors.bgMedium,
+            borderBottomColor: colors.border,
+            borderBottomWidth: isDark ? 1 : 0.5,
+          }]}>
             <TouchableOpacity onPress={() => setShowForm(false)}>
-              <Ionicons name="close" size={24} color={COLORS.textWhite} />
+              <Ionicons name="close" size={24} color={colors.textWhite} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>{editItem ? 'Edit Pelanggan' : 'Tambah Pelanggan'}</Text>
+            <Text style={[styles.modalTitle, { color: colors.textWhite }]}>
+              {editItem ? 'Edit Pelanggan' : 'Tambah Pelanggan'}
+            </Text>
             <TouchableOpacity onPress={handleSave} disabled={isSaving}>
-              {isSaving ? <ActivityIndicator color={COLORS.primary} size="small" />
-                        : <Text style={styles.saveText}>Simpan</Text>}
+              {isSaving
+                ? <ActivityIndicator color={colors.primary} size="small" />
+                : <Text style={[styles.saveText, { color: colors.primary }]}>Simpan</Text>}
             </TouchableOpacity>
           </View>
-          <ScrollView style={styles.modalBody}>
+          <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
             {[
               { key: 'name',    label: 'Nama *',    keyboard: 'default' },
               { key: 'phone',   label: 'Telepon',   keyboard: 'phone-pad' },
@@ -181,77 +192,54 @@ export default function CustomersScreen({ navigation, route }) {
               { key: 'address', label: 'Alamat',    keyboard: 'default' },
             ].map(f => (
               <View key={f.key} style={styles.formGroup}>
-                <Text style={styles.formLabel}>{f.label}</Text>
+                <Text style={[styles.formLabel, { color: colors.textLight }]}>{f.label}</Text>
                 <TextInput
-                  style={styles.formInput}
+                  style={[styles.formInput, {
+                    backgroundColor: colors.bgCard,
+                    color: colors.textWhite,
+                    borderColor: colors.border,
+                  }]}
                   value={form[f.key]}
                   onChangeText={v => setForm(p => ({ ...p, [f.key]: v }))}
                   keyboardType={f.keyboard}
-                  placeholderTextColor={COLORS.textDark}
+                  placeholderTextColor={colors.textDark}
                   placeholder={`Masukkan ${f.label.replace(' *', '')}`}
                 />
               </View>
             ))}
           </ScrollView>
-        </View>
+        </SafeAreaView>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bgDark },
-  header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingTop: 50, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md,
-    backgroundColor: COLORS.bgMedium,
-  },
-  headerTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  addBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center',
-  },
-  searchSection: { padding: SPACING.lg, backgroundColor: COLORS.bgMedium },
-  searchBar: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
-    backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.md, height: 44, borderWidth: 1, borderColor: COLORS.border,
-  },
-  searchInput: { flex: 1, color: COLORS.textWhite, fontSize: FONTS.md },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: SPACING.lg, paddingBottom: 60 },
-  card: {
-    flexDirection: 'row', alignItems: 'center', gap: SPACING.md,
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.lg,
-    marginBottom: SPACING.md, padding: SPACING.md,
-    borderWidth: 1, borderColor: COLORS.border, ...SHADOW.sm,
-  },
-  avatarCircle: {
-    width: 46, height: 46, borderRadius: 23,
-    backgroundColor: COLORS.primary + '22', alignItems: 'center', justifyContent: 'center',
-  },
-  avatarText: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.primary },
-  info: { flex: 1 },
-  name: { fontSize: FONTS.md, color: COLORS.textWhite, fontWeight: FONTS.semibold },
-  sub: { fontSize: FONTS.xs, color: COLORS.textMuted, marginTop: 2 },
-  actions: { flexDirection: 'row', gap: SPACING.sm },
-  actionBtn: { padding: 8, borderRadius: RADIUS.sm, backgroundColor: COLORS.bgMedium },
-  empty: { alignItems: 'center', paddingTop: 60, gap: SPACING.md },
-  emptyText: { color: COLORS.textMuted, fontSize: FONTS.md },
-  modal: { flex: 1, backgroundColor: COLORS.bgDark },
-  modalHeader: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 50, paddingHorizontal: SPACING.xl, paddingBottom: SPACING.md,
-    backgroundColor: COLORS.bgMedium,
-  },
-  modalTitle: { fontSize: FONTS.lg, fontWeight: FONTS.bold, color: COLORS.textWhite },
-  saveText: { color: COLORS.primary, fontSize: FONTS.md, fontWeight: FONTS.bold },
-  modalBody: { padding: SPACING.lg },
-  formGroup: { marginBottom: SPACING.md },
-  formLabel: { fontSize: FONTS.sm, color: COLORS.textLight, marginBottom: 6, fontWeight: FONTS.medium },
-  formInput: {
-    backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md,
-    padding: SPACING.md, color: COLORS.textWhite, fontSize: FONTS.md,
-    borderWidth: 1, borderColor: COLORS.border,
-  },
+  container:    { flex: 1 },
+  header:       { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md },
+  headerTitle:  { fontSize: FONTS.lg, fontWeight: '700' },
+  addBtn:       { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  searchSection:{ padding: SPACING.lg },
+  searchBar:    { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 44, borderWidth: 1 },
+  searchInput:  { flex: 1, fontSize: FONTS.md },
+  loading:      { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  list:         { padding: SPACING.lg },
+  card:         { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, borderRadius: RADIUS.lg, marginBottom: SPACING.md, padding: SPACING.md, borderWidth: 1 },
+  avatarCircle: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center' },
+  avatarText:   { fontSize: FONTS.lg, fontWeight: '700' },
+  info:         { flex: 1 },
+  name:         { fontSize: FONTS.md, fontWeight: '600' },
+  sub:          { fontSize: FONTS.xs, marginTop: 2 },
+  actions:      { flexDirection: 'row', gap: SPACING.sm },
+  actionBtn:    { padding: 8, borderRadius: RADIUS.sm },
+  empty:        { alignItems: 'center', paddingTop: 60, gap: SPACING.md },
+  emptyText:    { fontSize: FONTS.md },
+  modal:        { flex: 1 },
+  modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SPACING.xl, paddingVertical: SPACING.md },
+  modalTitle:   { fontSize: FONTS.lg, fontWeight: '700' },
+  saveText:     { fontSize: FONTS.md, fontWeight: '700' },
+  modalBody:    { padding: SPACING.lg },
+  formGroup:    { marginBottom: SPACING.md },
+  formLabel:    { fontSize: FONTS.sm, marginBottom: 6, fontWeight: '500' },
+  formInput:    { borderRadius: RADIUS.md, padding: SPACING.md, fontSize: FONTS.md, borderWidth: 1, height: 50 },
 });
