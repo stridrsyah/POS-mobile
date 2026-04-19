@@ -168,7 +168,7 @@ export default function SplashScreen() {
 
         {/* App name */}
         <Animated.View style={[s.nameWrap, { opacity: textOpacity, transform: [{ translateY: textSlide }] }]}>
-          <Text style={s.appName}>KasirPOS</Text>
+          <Text style={s.appName}>POSKAS</Text>
           <View style={s.vBadge}>
             <Text style={s.vText}>v2.2</Text>
           </View>

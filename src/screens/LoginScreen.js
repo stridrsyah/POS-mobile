@@ -105,7 +105,7 @@ export default function LoginScreen({ navigation }) {
             <LinearGradient colors={['#6C63FF', '#8B85FF']} style={s.logoContainer}>
               <Ionicons name="storefront" size={42} color="#fff" />
             </LinearGradient>
-            <Text style={[s.appName, { color: colors.textWhite }]}>KasirPOS</Text>
+            <Text style={[s.appName, { color: colors.textWhite }]}>POSKAS</Text>
             <Text style={[s.subtitle, { color: colors.textMuted }]}>Masuk ke akun Anda</Text>
             <Text style={[s.brandBy, { color: colors.primary + '90' }]}>by AprilTech</Text>
           </Animated.View>
